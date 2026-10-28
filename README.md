@@ -4,7 +4,7 @@ Aplicación de escritorio **sin conexión** para administrar el alquiler de
 apartamentos (≈70 unidades agrupadas en residenciales como Anamelia, Villa
 Cerro y Anamulla). Abre directamente, sin inicio de sesión.
 
-> **Estado: Fase 3.** Cobros, anulación auditada, depósitos, recibos PDF de
+> **Estado: Fase 3C (impresión 2C-P80-C).** Cobros, anulación auditada, depósitos, recibos PDF de
 > 80 mm, reimpresión desde el historial, copia de seguridad y restauración
 > funcionan de verdad sobre SQLite local. La impresión térmica tiene ahora **dos
 > caminos reales** (cola de Windows y puerto serie Bluetooth con ESC/POS), pero
@@ -90,43 +90,65 @@ flutter build windows --release # build\windows\x64\runner\Release\
   programa se cierra antes de escribirlo, se **regenera al arrancar** desde ese
   snapshot, sin volver a cobrar. Reimprimir no crea pagos ni números nuevos.
 
-## Impresora
+## Impresora (2C-P80-C de 80 mm)
 
-Se admiten **dos transportes**, elegidos en Ajustes → *Impresora*:
+`Ajustes → Impresora` ofrece **tres modos de conexión**:
 
-1. **Cola de impresión de Windows** — la impresora está instalada en el sistema.
-   Se envía el PDF de 80 mm al driver con `Printing.directPrintPdf` (sin
-   diálogos). Es el camino recomendado si el fabricante instala driver propio.
-2. **Puerto serie (Bluetooth SPP/RFCOMM)** — la impresora está emparejada y
-   Windows le creó un puerto `COM`. Se envía **ESC/POS nativo** (texto CP850,
-   negrita, doble alto, avance y corte) por ese puerto, sin driver intermedio.
-   Los puertos se listan leyendo `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`, así que
-   aparecen los `COM` que existan en el equipo, con la marca *Bluetooth
-   probable* cuando la ruta del dispositivo es `\Device\BthModem…`.
+| Modo | Cuándo usarlo |
+|---|---|
+| **Automático** (por defecto) | La aplicación busca sola: si hay un único puerto serie Bluetooth lo usa; si no, avisa "No se encontró la impresora. Revise Bluetooth." |
+| **Windows** | La impresora tiene driver del fabricante y cola en el sistema. Envía el PDF de 80 mm con `Printing.directPrintPdf` (sin diálogos). |
+| **Bluetooth (COM)** | Emparejada como *Bluetooth clásico (SPP)*; Windows crea un puerto `COM`. Se envía **ESC/POS nativo** por ese puerto, sin driver. |
 
-Con la configuración vacía se abre el diálogo de impresión de Windows: es la
-única vez que aparece una ventana.
+Detalles importantes:
 
-* *Imprimir sin acentos*: translitera á é í ó ú ñ a ASCII para impresoras que
-  ignoran la orden de página de códigos CP850 (síntoma típico: símbolos raros).
-* *Margen a cada lado*: configurable de 0,5 a 15 mm; el ancho de papel sigue
-  siendo 80 mm (o 58 mm) exactos.
-* Al imprimir el orden es **commit → PDF → trabajo de impresión**. Si la
-  impresora falla, el cobro y el recibo quedan guardados y el aviso dice
-  "El cobro está guardado y puede reimprimirse desde el historial".
-* Los mensajes dicen **"Enviado a la impresora"**, nunca "Impreso": el sistema
-  no puede saber si el papel salió.
+* Los puertos se listan leyendo `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` y se
+  etiquetan con el nombre de Windows (`Standard Serial over Bluetooth link
+  (COM5)`), marcando los **entrantes** (*Bluetooth-Incoming*) como *no sirven
+  para imprimir*.
+* **Ancho del papel ≠ ancho imprimible.** El perfil guarda `paperWidthMm = 80`
+  y un **ancho útil en puntos** (`printerPrintableDots`). Sin calibrar se usa un
+  valor conservador de **576 puntos (72 mm)** — nunca el máximo teórico — para
+  que el texto no se recorte. El PDF se genera a 80 mm de ancho y el contenido
+  se centra dentro del área imprimible (margen mínimo 4 mm por lado).
+* **Calibración**: *Probar* imprime un ticket con marco, regla de columnas,
+  alineaciones, acentos y montos. Con una regla se mide el ancho real y se
+  guarda en `Avanzado → Ancho útil calibrado (puntos)` (mm × 8).
+* **Nada de cortes.** La 2C-P80-C se rasga a mano: no se envían comandos de
+  cortador (`GS V`). El perfil solo cortaría si algún día se verifica un
+  cortador real.
+* La salida por COM corre en un **isolate** (no congela la interfaz) y usa
+  tiempos de espera acotados; escritura en bloques de 512 bytes.
+* El orden es **commit → PDF → impresión**. Si la impresora falla, el cobro y el
+  recibo quedan guardados y se puede reimprimir desde el historial.
+* Los avisos dicen **"Enviado a la impresora… no hay confirmación del
+  dispositivo"**, nunca "Impreso": el equipo no reporta estado.
 * Nunca se reimprime solo al arrancar; el arranque solo **regenera PDF**
   faltantes.
+* La cédula se imprime enmascarada; en papel se usa `X` (el `•` viaja como 0x07
+  y muchas impresoras lo interpretan como BEL).
 
 **Límites reales (no maquillados):**
 
-* Bluetooth **LE (BLE)** no está soportado: esas impresoras no exponen puerto
-  serie ni aceptan ESC/POS por GATT, y no hay evidencia de lo contrario.
-* No se garantiza ningún modelo concreto: depende del perfil (SPP) y de que el
-  driver cree el puerto COM.
-* La prueba física en el equipo del cliente sigue **pendiente**.
+* Bluetooth **LE (BLE)** no está soportado (no expone puerto serie ni acepta
+  ESC/POS por GATT).
+* No se garantiza el resultado con un modelo distinto ni con un driver de otra
+  familia (p. ej. `2C-POS80-01-V8` no es el de la `2C-P80-C`).
+* La **prueba física** en la impresora y el equipo del cliente sigue
+  **pendiente** (ver `docs/INFORME_FASE_3C_2C_P80_C.md`).
 
+### Herramientas de verificación (no tocan los datos reales)
+
+```powershell
+# Todo lo que se ejecute con esta variable usa una carpeta aparte (sandbox)
+$env:CONTROL_ALQUILERES_DATA_DIR = "$env:TEMP\ca-sandbox\datos"
+
+dart run tool/print_calibration.dart COM5          # ticket de calibración por ESC/POS
+dart run tool/print_receipt.dart COM5              # imprime el último recibo real
+dart run tool/print_receipt.dart --solo-bin        # genera el .bin sin imprimir
+dart run tool/uat_seed.dart                        # escenario de 70 apartamentos
+dart run tool/verify_data.dart                     # abre una COPIA de la base real
+```
 ## Estructura
 
 ```
@@ -141,7 +163,8 @@ lib/
 │   └── finance_models.dart       períodos y cálculo de estado (puro)
 ├── src/services/
 │   ├── receipt_document_service.dart  PDF de 80 mm (snapshot inmutable)
-│   ├── escpos.dart                    bytes ESC/POS (CP850, corte)
+│   ├── printer_profile.dart            ancho util calibrado, margenes, columnas
+│   ├── escpos.dart                    bytes ESC/POS (CP850, sin corte) + calibración
 │   ├── serial_transport.dart          Win32 CreateFile/WriteFile por FFI
 │   ├── print_service.dart             cola Windows + puerto serie
 │   ├── backup_service.dart            copias, restauración, exportación
@@ -153,6 +176,8 @@ comandos de consola (sin tocar los datos reales):
 tool/phase2_flow.dart   recorrido completo sobre una copia de la base
 tool/uat_seed.dart      siembra un escenario UAT aislado en %TEMP%
 tool/verify_data.dart   abre una COPIA de la base y reporta versión/integridad
+tool/print_calibration.dart  ticket de calibración por puerto COM
+tool/print_receipt.dart      imprime un recibo real (o genera el .bin)
 docs/INVENTARIO_CONTROLES.md  qué funciona y qué no, pantalla por pantalla
 docs/GUIA_RAPIDA.md           guía de una página para la dueña
 ```
@@ -180,7 +205,7 @@ Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 
 
 ---
 
-## Pruebas (124)
+## Pruebas (146)
 
 | Archivo | Cubre |
 |---|---|

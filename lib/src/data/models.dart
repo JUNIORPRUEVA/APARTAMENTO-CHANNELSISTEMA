@@ -156,6 +156,8 @@ class LeaseHistoryRow {
 
 /// Cómo se entrega el recibo a la impresora.
 ///
+/// * [auto]: el sistema detecta el camino disponible (cola de Windows primero,
+///   puerto serie después). Es el modo recomendado para la dueña.
 /// * [windows]: la impresora está instalada en Windows y se envía el PDF a su
 ///   cola de impresión (una sola llamada al driver, sin diálogos).
 /// * [serial]: la impresora Bluetooth está emparejada como puerto serie (SPP /
@@ -164,10 +166,12 @@ class LeaseHistoryRow {
 /// No se cubre Bluetooth LE (BLE): esas impresoras no exponen un puerto serie y
 /// requieren GATT, que esta versión no implementa.
 enum PrinterTransport {
+  auto,
   windows,
   serial;
 
   static PrinterTransport parse(String? raw) {
+    // Compatibilidad: los datos de la Fase 2/3 no tenían 'auto'.
     return PrinterTransport.values.firstWhere(
       (value) => value.name == raw,
       orElse: () => PrinterTransport.windows,
@@ -175,8 +179,9 @@ enum PrinterTransport {
   }
 
   String get label => switch (this) {
+    PrinterTransport.auto => 'Automático (recomendado)',
     PrinterTransport.windows => 'Cola de impresión de Windows',
-    PrinterTransport.serial => 'Puerto serie (Bluetooth SPP)',
+    PrinterTransport.serial => 'Bluetooth / puerto serie',
   };
 }
 
@@ -191,8 +196,11 @@ class OwnerSettings {
     this.receiptWidthMm = 80,
     this.receiptMarginMm = 3.5,
     this.asciiOnly = false,
-    this.printerTransport = PrinterTransport.windows,
+    this.printerTransport = PrinterTransport.auto,
     this.printerTarget,
+    this.printerPrintableDots = 0,
+    this.printerMarginDots = 0,
+    this.printerBaudRate = 9600,
     this.backupExportDir = '',
   });
 
@@ -206,8 +214,11 @@ class OwnerSettings {
       receiptWidthMm = 80,
       receiptMarginMm = 3.5,
       asciiOnly = false,
-      printerTransport = PrinterTransport.windows,
+      printerTransport = PrinterTransport.auto,
       printerTarget = null,
+      printerPrintableDots = 0,
+      printerMarginDots = 0,
+      printerBaudRate = 9600,
       backupExportDir = '';
 
   final String issuerName;
@@ -235,6 +246,19 @@ class OwnerSettings {
   /// Imprime sin acentos (para impresoras que no respetan la página CP850).
   final bool asciiOnly;
 
+  /// Ancho imprimible calibrado en puntos del cabezal (0 = sin calibrar).
+  ///
+  /// 80 mm es el ancho del **rollo**; lo que realmente se imprime puede ser
+  /// 576 o 640 puntos según el equipo. Se mide con el auto-test o con el ticket
+  /// de calibración y se guarda aquí.
+  final int printerPrintableDots;
+
+  /// Margen de contenido extra a cada lado, en puntos (0 = solo el necesario).
+  final int printerMarginDots;
+
+  /// Velocidad del puerto serie para la impresora Bluetooth (SPP).
+  final int printerBaudRate;
+
   /// Carpeta (por ejemplo una memoria USB) para exportar copias.
   final String backupExportDir;
 
@@ -253,6 +277,9 @@ class OwnerSettings {
     int? receiptWidthMm,
     double? receiptMarginMm,
     bool? asciiOnly,
+    int? printerPrintableDots,
+    int? printerMarginDots,
+    int? printerBaudRate,
     String? backupExportDir,
   }) {
     return OwnerSettings(
@@ -269,6 +296,9 @@ class OwnerSettings {
       receiptWidthMm: receiptWidthMm ?? this.receiptWidthMm,
       receiptMarginMm: receiptMarginMm ?? this.receiptMarginMm,
       asciiOnly: asciiOnly ?? this.asciiOnly,
+      printerPrintableDots: printerPrintableDots ?? this.printerPrintableDots,
+      printerMarginDots: printerMarginDots ?? this.printerMarginDots,
+      printerBaudRate: printerBaudRate ?? this.printerBaudRate,
       backupExportDir: backupExportDir ?? this.backupExportDir,
     );
   }

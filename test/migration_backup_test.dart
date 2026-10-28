@@ -247,6 +247,87 @@ void main() {
     });
   });
 
+  group('migración 3 → 4', () {
+    late String dbPath;
+
+    setUp(() {
+      dbPath = p.join(tempDir.path, 'fase3.sqlite');
+      final raw = sqlite3.open(dbPath);
+      // Base tal como la dejaba la Fase 3 (v3).
+      for (final statement in kSchemaV1Statements) {
+        raw.execute(statement);
+      }
+      for (final statement in kMigrationV2Statements) {
+        raw.execute(statement);
+      }
+      for (final statement in kMigrationV3Statements) {
+        raw.execute(statement);
+      }
+      raw.execute('PRAGMA user_version = 3');
+      raw.execute(
+        "INSERT INTO owner_settings (id, issuer_name, printer_name, "
+        "printer_transport, printer_target, receipt_prefix, receipt_width_mm, "
+        "receipt_margin_mm, ascii_only, updated_at) "
+        "VALUES (1, 'Anamelia Rentas', '2C-POS80', 'serial', 'COM5', 'REC', "
+        "80, 3.5, 0, 'x')",
+      );
+      raw.execute(
+        "INSERT INTO apartment_groups (name, sort_order, is_demo, created_at) "
+        "VALUES ('Anamelia', 1, 0, 'x')",
+      );
+      raw.close();
+    });
+
+    test('agrega el perfil calibrado sin perder la configuración', () {
+      final db = AppDatabase.openAt(dbPath);
+      addTearDown(db.close);
+
+      expect(db.userVersion, kSchemaVersion);
+      expect(db.quickCheck(), isNull);
+
+      final settings = db.rows('SELECT * FROM owner_settings').single;
+      expect(settings['issuer_name'], 'Anamelia Rentas');
+      expect(settings['printer_name'], '2C-POS80');
+      expect(settings['printer_transport'], 'serial');
+      expect(settings['printer_target'], 'COM5');
+      // Valores nuevos: sin calibrar, sin margen extra, 9600 baudios.
+      expect(settings['printer_printable_dots'], 0);
+      expect(settings['printer_margin_dots'], 0);
+      expect(settings['printer_baud_rate'], 9600);
+      expect(
+        db.rows('SELECT COUNT(*) AS c FROM apartment_groups').first['c'],
+        1,
+      );
+    });
+
+    test('la migración 1 → 4 se aplica completa en un solo arranque', () {
+      final v1Path = p.join(tempDir.path, 'fase1-a-4.sqlite');
+      final raw = sqlite3.open(v1Path);
+      for (final statement in kSchemaV1Statements) {
+        raw.execute(statement);
+      }
+      raw.execute('PRAGMA user_version = 1');
+      raw.close();
+
+      final db = AppDatabase.openAt(v1Path);
+      addTearDown(db.close);
+      expect(db.userVersion, kSchemaVersion);
+      final columns = db
+          .rows('PRAGMA table_info(owner_settings)')
+          .map((row) => row['name'])
+          .toList();
+      expect(
+        columns,
+        containsAll(<String>[
+          'printer_printable_dots',
+          'printer_margin_dots',
+          'printer_baud_rate',
+        ]),
+      );
+      expect(db.quickCheck(), isNull);
+    });
+  });
+
   group('copia de seguridad y restauración', () {
     test('la copia es consistente con WAL y se puede abrir (restaurar)', () {
       final paths = AppPaths.create(p.join(tempDir.path, 'datos'));

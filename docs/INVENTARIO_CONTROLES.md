@@ -1,4 +1,4 @@
-# Inventario de controles — Control de Alquileres (Fase 3)
+# Inventario de controles — Control de Alquileres (Fase 3C · 2C-P80-C)
 
 Revisión completa de **cada pantalla y cada botón** con su estado real tras las
 pruebas de esta fase. Leyenda:
@@ -87,38 +87,42 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | Página Cobros: pendientes por apartamento | FUNCIONA | Ordenado por atraso |
 | Botón Cobrar desde esa página | FUNCIONA | Mismo formulario real |
 
-## 7. Ajustes e impresora
+## 7. Ajustes e impresora (2C-P80-C)
 
 | Control | Estado | Nota |
 |---|---|---|
 | Datos del negocio (nombre, RNC/cédula, dirección, teléfono) | FUNCIONA | Se imprimen en cada recibo |
 | Prefijo del recibo | FUNCIONA | Cambia la serie de los recibos nuevos |
 | Ancho del papel 80 / 58 mm | FUNCIONA | El PDF sale exactamente de ese ancho (verificado en el MediaBox) |
-| **Margen a cada lado (mm)** | FUNCIONA | 0,5 a 15 mm |
-| **Selector de impresora** (colas de Windows + puertos COM) | FUNCIONA | Detecta `COM` leyendo el registro; marca "Bluetooth probable" |
-| **Actualizar** lista | FUNCIONA | Vuelve a consultar spooler y puertos |
-| **Imprimir prueba** | PARCIAL | Windows: hoja PDF; puerto serie: ticket ESC/POS de prueba |
-| **Imprimir sin acentos** | FUNCIONA | Translitera a ASCII (para impresoras que ignoran CP850) |
-| Crear copia ahora | FUNCIONA | `VACUUM INTO` + recibos, retención de 14 |
-| Restaurar copia | FUNCIONA | Verifica el archivo y guarda copia previa a restaurar |
-| Exportar a USB | FUNCIONA | Copia la última copia a la carpeta indicada |
-| Eliminar datos de demostración | FUNCIONA | Se niega si el demo tiene cobros o depósitos |
+| **Conexión: Automático / Windows / Bluetooth (COM)** | FUNCIONA | Automático usa un único puerto Bluetooth; nunca elige al azar entre varios |
+| **Selector de impresora** (colas + puertos COM) | FUNCIONA | Nombres de Windows; los puertos *entrantes* se marcan como no utilizables |
+| **Actualizar** | FUNCIONA | Vuelve a consultar spooler, registro y nombres amigables |
+| **Probar** (ticket de calibración) | PARCIAL | Genera el ticket real (PDF o ESC/POS); **no verificado en hardware** |
+| Línea de estado ("Impresora lista: COM5") | FUNCIONA | Mensajes en español, sin trazas |
+| Avanzado → **ancho útil calibrado (puntos)** | FUNCIONA | 0 = automático (576 en 80 mm). Persistido y validado |
+| Avanzado → margen de contenido (puntos) | FUNCIONA | Reduce las columnas del ticket |
+| Avanzado → velocidad (baudios) | FUNCIONA | 9600/19200/38400/115200 |
+| Avanzado → imprimir sin acentos | FUNCIONA | Translitera a ASCII |
+| Crear copia ahora / Restaurar / Exportar / Purgar demo | FUNCIONA | Sin cambios respecto a la Fase 3 |
 
 ### Impresión térmica — estado real
 
 | Caso | Estado |
 |---|---|
-| Cola de Windows con controlador del fabricante | PARCIAL: implementado, probado con mock; **no probado con hardware** |
-| Puerto serie Bluetooth SPP con ESC/POS | PARCIAL: implementado (CreateFile/SetCommState/WriteFile por FFI), probado con transporte falso; **no probado con hardware** |
+| Cola de Windows con driver del fabricante | PARCIAL: implementado y probado con mock; **no probado con hardware** |
+| Puerto serie Bluetooth SPP con ESC/POS | PARCIAL: implementado (FFI) y probado con transporte falso; **no probado con hardware** |
+| Ancho de papel 80 mm / ancho imprimible distinto | FUNCIONA: perfil con 576 puntos conservadores y calibración manual |
+| Ticket demasiado ancho (texto cortado) | FUNCIONA: el margen se amplía solo; `Avanzado` permite reducirlo más |
+| Envío de corte (`GS V`) a impresora sin cortador | FUNCIONA: **no se envía nunca** (corte manual por defecto) |
+| Cédula en el papel | FUNCIONA: enmascarada con `X` (seguro en CP850) |
 | Bluetooth LE (BLE) | BLOQUEADO: no soportado (sin perfil serie) |
 | Bluetooth apagado / puerto inexistente | FUNCIONA (probado): mensaje claro, cobro intacto |
 | Desconexión a mitad del trabajo | FUNCIONA (probado): informa trabajo incompleto y sugiere reimprimir |
 | Tiempo de espera agotado | FUNCIONA (probado) |
 | Spooler que rechaza el trabajo | FUNCIONA (probado) |
-| Varias impresoras instaladas | FUNCIONA (probado): se elige una y se usa esa |
+| Varias impresoras / varios puertos | FUNCIONA (probado): exige elegir, no adivina |
 | Doble impresión del mismo recibo | FUNCIONA (probado): dos trabajos idénticos, un solo recibo y un solo PDF |
-| Ticket impreso de verdad | BLOQUEADO: falta la impresora |
-
+| Ticket impreso de verdad (2C-P80-C) | BLOQUEADO: no hay impresora conectada al equipo de desarrollo |
 ## 8. Respaldos y arranque
 
 | Caso | Estado |

@@ -167,32 +167,63 @@ void main() {
       expect(bt.detail, 'Bluetooth probable');
     });
 
-    test('sin destino configurado se avisa y no se pierde el cobro', () async {
-      final result = await service.printReceipt(
-        record,
-        settings: const OwnerSettings.empty(),
-      );
-      expect(result.ok, isTrue); // abre el diálogo de Windows
-      expect(windows.jobs.length, 1);
-      expect(windows.jobs.first, isNull);
-
-      final serialResult = await service.printReceipt(
-        record,
-        settings: const OwnerSettings(
+    test(
+      'sin destino y modo Windows se abre el diálogo, nada se pierde',
+      () async {
+        const dialogSettings = OwnerSettings(
           issuerName: 'X',
           issuerId: '',
           issuerAddress: '',
           issuerPhone: '',
           printerName: null,
           receiptPrefix: 'REC',
-          printerTransport: PrinterTransport.serial,
-          printerTarget: null,
-        ),
-      );
-      expect(serialResult.ok, isFalse);
-      expect(serialResult.message, contains('puerto serie'));
-      expect(serial.sent, isEmpty);
-    });
+          printerTransport: PrinterTransport.windows,
+        );
+        final result = await service.printReceipt(
+          record,
+          settings: dialogSettings,
+        );
+        expect(result.ok, isTrue); // abre el diálogo de Windows
+        expect(windows.jobs.length, 1);
+        expect(windows.jobs.first, isNull);
+
+        // Modo serie sin destino: si hay un único puerto Bluetooth, se usa ese
+        // (no hay ambigüedad); si no hay ninguno, se avisa sin romper nada.
+        final serialResult = await service.printReceipt(
+          record,
+          settings: const OwnerSettings(
+            issuerName: 'X',
+            issuerId: '',
+            issuerAddress: '',
+            issuerPhone: '',
+            printerName: null,
+            receiptPrefix: 'REC',
+            printerTransport: PrinterTransport.serial,
+            printerTarget: null,
+          ),
+        );
+        expect(serialResult.ok, isTrue);
+        expect(serial.sent.single.port, 'COM3');
+
+        serial.ports = const [];
+        final missing = await service.printReceipt(
+          record,
+          settings: const OwnerSettings(
+            issuerName: 'X',
+            issuerId: '',
+            issuerAddress: '',
+            issuerPhone: '',
+            printerName: null,
+            receiptPrefix: 'REC',
+            printerTransport: PrinterTransport.serial,
+            printerTarget: null,
+          ),
+        );
+        expect(missing.ok, isFalse);
+        expect(missing.message, contains('No se encontró la impresora'));
+        expect(missing.message, contains('guardado'));
+      },
+    );
 
     test('el driver rechaza el trabajo: mensaje claro y PDF intacto', () async {
       windows.reject = true;
@@ -279,22 +310,94 @@ void main() {
       );
     });
 
-    test('la hoja de prueba informa el puerto y los acentos', () async {
-      final result = await service.printTestPage(serialSettings());
+    test('el ticket de calibración informa el perfil y los acentos', () async {
+      final result = await service.printCalibration(serialSettings());
       expect(result.ok, isTrue);
       final text = String.fromCharCodes(serial.sent.first.bytes);
-      expect(text, contains('COM3'));
-      expect(text, contains('Prueba de impresora'));
+      expect(text, contains('CALIBRACION'));
+      expect(text, contains('80 mm'));
+      expect(text, contains('576 puntos'));
+      expect(text, contains('Manual')); // corte manual: no hay cortador
     });
 
-    test('sin acentos la prueba sale en ASCII puro', () async {
-      final result = await service.printTestPage(
+    test('sin acentos la calibración sale en ASCII puro', () async {
+      final result = await service.printCalibration(
         serialSettings().copyWith(asciiOnly: true),
       );
       expect(result.ok, isTrue);
       final bytes = serial.sent.first.bytes;
       // Los únicos bytes altos permitidos son los de los comandos ESC/POS.
       expect(bytes.contains(0xC3), isFalse);
+    });
+
+    test('nunca se envía corte a una impresora de rasgado manual', () async {
+      await service.printReceipt(record, settings: serialSettings());
+      final bytes = serial.sent.first.bytes;
+      // Sin GS V en ningún punto del flujo.
+      var found = false;
+      for (var i = 0; i + 1 < bytes.length; i++) {
+        if (bytes[i] == 0x1D && bytes[i + 1] == 0x56) found = true;
+      }
+      expect(found, isFalse, reason: 'la 2C-P80-C no tiene cortador');
+    });
+  });
+
+  group('detección y ruteo', () {
+    test('modo automático usa el único puerto Bluetooth presente', () async {
+      final detection = await service.detect(
+        const OwnerSettings(
+          issuerName: 'X',
+          issuerId: '',
+          issuerAddress: '',
+          issuerPhone: '',
+          printerName: null,
+          receiptPrefix: 'REC',
+        ),
+      );
+      expect(detection.found, isTrue);
+      expect(detection.kind, PrinterKind.serialCom);
+      expect(detection.endpoint, 'COM3');
+      expect(detection.message, contains('lista'));
+    });
+
+    test('avisos cuando el puerto configurado no existe', () async {
+      serial.ports = const [];
+      final detection = await service.detect(serialSettings(port: 'COM9'));
+      expect(detection.found, isFalse);
+      expect(detection.message, contains('COM9'));
+      expect(detection.message, contains('Bluetooth'));
+    });
+
+    test('avisa si hay varios puertos Bluetooth y hay que elegir', () async {
+      serial.ports = const [
+        ComPort(name: 'COM3', devicePath: r'\Device\BthModem0', baudRate: 9600),
+        ComPort(name: 'COM7', devicePath: r'\Device\BthModem1', baudRate: 9600),
+      ];
+      final detection = await service.detect(const OwnerSettings.empty());
+      expect(detection.found, isFalse);
+      expect(detection.message, contains('Ajustes'));
+    });
+
+    test('los puertos entrantes de Bluetooth no se usan para imprimir', () {
+      const incoming = ComPort(
+        name: 'COM6',
+        devicePath: r'\Device\BthModem0',
+        baudRate: 9600,
+        friendlyName: 'Bluetooth-Incoming (COM6)',
+      );
+      expect(incoming.isIncomingLink, isTrue);
+      expect(incoming.canSend, isFalse);
+      expect(incoming.label, contains('no sirve'));
+
+      const outgoing = ComPort(
+        name: 'COM5',
+        devicePath: r'\Device\BthModem0',
+        baudRate: 9600,
+        friendlyName: 'Standard Serial over Bluetooth link (COM5)',
+      );
+      expect(outgoing.isIncomingLink, isFalse);
+      expect(outgoing.canSend, isTrue);
+      expect(outgoing.label, contains('COM5'));
     });
   });
 }

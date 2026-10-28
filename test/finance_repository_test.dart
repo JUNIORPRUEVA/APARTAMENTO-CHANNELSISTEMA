@@ -713,7 +713,15 @@ void main() {
       );
       final result = await printer.printReceipt(
         finance.receipt(outcome.receiptId)!,
-        settings: const OwnerSettings.empty(),
+        settings: const OwnerSettings(
+          issuerName: '',
+          issuerId: '',
+          issuerAddress: '',
+          issuerPhone: '',
+          printerName: null,
+          receiptPrefix: 'REC',
+          printerTransport: PrinterTransport.windows,
+        ),
       );
       expect(result.ok, isTrue);
       expect(gateway.lastPrinter, isNull);

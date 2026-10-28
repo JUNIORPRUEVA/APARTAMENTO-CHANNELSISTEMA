@@ -15,7 +15,9 @@ class SettingsRepository {
     final rows = _db.rows(
       'SELECT issuer_name, issuer_id, issuer_address, issuer_phone, '
       'printer_name, printer_transport, printer_target, receipt_prefix, '
-      'receipt_width_mm, receipt_margin_mm, ascii_only, backup_export_dir '
+      'receipt_width_mm, receipt_margin_mm, ascii_only, '
+      'printer_printable_dots, printer_margin_dots, printer_baud_rate, '
+      'backup_export_dir '
       'FROM owner_settings WHERE id = 1',
     );
     if (rows.isEmpty) {
@@ -40,8 +42,29 @@ class SettingsRepository {
       receiptWidthMm: width == 58 ? 58 : 80,
       receiptMarginMm: margin <= 0 ? 3.5 : (margin > 15 ? 15 : margin),
       asciiOnly: ((row['ascii_only'] as int?) ?? 0) == 1,
+      printerPrintableDots: _clampDots(row['printer_printable_dots'] as int?),
+      printerMarginDots: _clampMargin(row['printer_margin_dots'] as int?),
+      printerBaudRate: _clampBaud(row['printer_baud_rate'] as int?),
       backupExportDir: (row['backup_export_dir'] as String?) ?? '',
     );
+  }
+
+  /// Un valor de calibración fuera de rango es un dato inválido: se descarta
+  /// (vuelve a "sin calibrar") en vez de recortar boletas en silencio.
+  static int _clampDots(int? value) {
+    if (value == null || value < 96 || value > 1200) return 0;
+    return value;
+  }
+
+  static int _clampBaud(int? value) {
+    const valid = [9600, 19200, 38400, 57600, 115200];
+    return valid.contains(value) ? value! : 9600;
+  }
+
+  /// El margen puede ser pequeño (0 es válido: solo el margen necesario).
+  static int _clampMargin(int? value) {
+    if (value == null || value < 0 || value > 240) return 0;
+    return value;
   }
 
   void save(OwnerSettings settings) {
@@ -56,8 +79,9 @@ class SettingsRepository {
         'INSERT INTO owner_settings '
         '(id, issuer_name, issuer_id, issuer_address, issuer_phone, printer_name, '
         'printer_transport, printer_target, receipt_prefix, receipt_width_mm, '
-        'receipt_margin_mm, ascii_only, backup_export_dir, updated_at) '
-        'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+        'receipt_margin_mm, ascii_only, printer_printable_dots, '
+        'printer_margin_dots, printer_baud_rate, backup_export_dir, updated_at) '
+        'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
         'ON CONFLICT (id) DO UPDATE SET '
         'issuer_name = excluded.issuer_name, issuer_id = excluded.issuer_id, '
         'issuer_address = excluded.issuer_address, issuer_phone = excluded.issuer_phone, '
@@ -68,6 +92,9 @@ class SettingsRepository {
         'receipt_width_mm = excluded.receipt_width_mm, '
         'receipt_margin_mm = excluded.receipt_margin_mm, '
         'ascii_only = excluded.ascii_only, '
+        'printer_printable_dots = excluded.printer_printable_dots, '
+        'printer_margin_dots = excluded.printer_margin_dots, '
+        'printer_baud_rate = excluded.printer_baud_rate, '
         'backup_export_dir = excluded.backup_export_dir, '
         'updated_at = excluded.updated_at',
         [
@@ -82,6 +109,9 @@ class SettingsRepository {
           settings.receiptWidthMm == 58 ? 58 : 80,
           margin,
           settings.asciiOnly ? 1 : 0,
+          _clampDots(settings.printerPrintableDots),
+          _clampMargin(settings.printerMarginDots),
+          _clampBaud(settings.printerBaudRate),
           settings.backupExportDir.trim(),
           DateTime.now().toIso8601String(),
         ],

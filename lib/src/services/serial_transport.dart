@@ -15,6 +15,7 @@ class ComPort {
     required this.name,
     required this.devicePath,
     required this.baudRate,
+    this.friendlyName = '',
   });
 
   /// Nombre que espera la API de Windows, por ejemplo `COM5`.
@@ -27,11 +28,46 @@ class ComPort {
   /// Velocidad propuesta. Las impresoras Bluetooth SPP suelen usar 9600.
   final int baudRate;
 
+  /// Nombre que muestra Windows (por ejemplo
+  /// "Standard Serial over Bluetooth link (COM5)").
+  final String friendlyName;
+
   /// `true` cuando la ruta del dispositivo sugiere Bluetooth (BthModem) o un
   /// adaptador USB-serie. Es una **pista**, no una garantía.
   bool get likelyBluetooth => devicePath.toLowerCase().contains('bth');
 
-  String get label => name;
+  /// Puerto **entrante** de Bluetooth ("Bluetooth-Incoming"): Windows lo crea
+  /// para que otro equipo se conecte a este. Enviarle un ticket no imprime
+  /// nada, así que no debe elegirse como destino.
+  bool get isIncomingLink =>
+      friendlyName.toLowerCase().contains('incoming') ||
+      friendlyName.toLowerCase().contains('entrante');
+
+  /// Sirve para enviar datos (impresora).
+  bool get canSend => !isIncomingLink;
+
+  /// Texto para el desplegable: `COM5 · Bluetooth (saliente)`.
+  String get label {
+    final parts = <String>[name];
+    if (friendlyName.isNotEmpty) {
+      parts.add(
+        friendlyName
+            .replaceAll(RegExp(r'\s*\(COM\d+\)', caseSensitive: false), '')
+            .trim(),
+      );
+    } else if (likelyBluetooth) {
+      parts.add('Bluetooth');
+    }
+    if (isIncomingLink) parts.add('entrante, no sirve para imprimir');
+    return parts.join(' · ');
+  }
+
+  /// Aclaración corta para la lista de impresoras.
+  String get detail {
+    if (isIncomingLink) return 'Bluetooth entrante';
+    if (likelyBluetooth) return 'Bluetooth probable';
+    return 'Puerto serie';
+  }
 }
 
 /// Entrega de bytes a un puerto serie.
@@ -69,6 +105,7 @@ class Win32SerialTransport implements SerialTransport {
   @override
   Future<List<ComPort>> listPorts() async {
     if (!Platform.isWindows) return const [];
+    List<ComPort> ports;
     try {
       // `reg query` no requiere permisos especiales y es más barato que
       // enumerar dispositivos con SetupAPI.
@@ -79,10 +116,62 @@ class Win32SerialTransport implements SerialTransport {
         stderrEncoding: latin1,
       );
       if (result.exitCode != 0) return const [];
-      return parseSerialMap(result.stdout as String);
+      ports = parseSerialMap(result.stdout as String);
     } catch (_) {
       return const [];
     }
+    if (ports.isEmpty) return ports;
+
+    // Los nombres amistosos permiten distinguir el puerto **saliente**
+    // ("Standard Serial over Bluetooth link (COM5)") del **entrante**
+    // ("Bluetooth-Incoming"). Se consulta una sola vez por refresco.
+    final names = await _friendlyNames();
+    if (names.isEmpty) return ports;
+    return [
+      for (final port in ports)
+        ComPort(
+          name: port.name,
+          devicePath: port.devicePath,
+          baudRate: port.baudRate,
+          friendlyName: names[port.name.toUpperCase()] ?? '',
+        ),
+    ];
+  }
+
+  /// Nombre descrito por Windows para cada `COM`. Costoso (~1 s): solo se usa
+  /// al abrir Ajustes o al pulsar *Actualizar*, nunca al imprimir.
+  static Future<Map<String, String>> _friendlyNames() async {
+    if (!Platform.isWindows) return const {};
+    try {
+      const script =
+          "Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | "
+          "Where-Object { \$_.Name -match '\\(COM\\d+\\)' } | "
+          'ForEach-Object { \$_.Name }';
+      final result = await Process.run(
+        'powershell',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        stdoutEncoding: const SystemEncoding(),
+        stderrEncoding: const SystemEncoding(),
+      );
+      if (result.exitCode != 0) return const {};
+      return parseFriendlyNames(result.stdout as String);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Extrae `{COM5: 'Standard Serial over Bluetooth link (COM5)'}` del texto.
+  static Map<String, String> parseFriendlyNames(String output) {
+    final map = <String, String>{};
+    final pattern = RegExp(r'\((COM\d+)\)', caseSensitive: false);
+    for (final line in output.split(RegExp(r'\r?\n'))) {
+      final text = line.trim();
+      if (text.isEmpty) continue;
+      final match = pattern.firstMatch(text);
+      if (match == null) continue;
+      map[match.group(1)!.toUpperCase()] = text;
+    }
+    return map;
   }
 
   /// Extrae los pares dispositivo → puerto del texto de `reg query`.
@@ -194,9 +283,16 @@ typedef _FlushFileBuffersNative = Int32 Function(IntPtr);
 typedef _FlushFileBuffersDart = int Function(int);
 
 class _Kernel32 {
-  _Kernel32() : _lib = DynamicLibrary.open('kernel32.dll');
+  _Kernel32() : _lib = DynamicLibrary.open('kernel32.dll') {
+    // `GetLastError` se resuelve aquí, antes de cualquier llamada real: si se
+    // resolviera después de un fallo, la propia resolución podría pisar el
+    // código de error y se reportaría un número sin sentido (p. ej. 127).
+    _getLastError = DynamicLibrary.process()
+        .lookupFunction<Int32 Function(), int Function()>('GetLastError');
+  }
 
   final DynamicLibrary _lib;
+  late final int Function() _getLastError;
 
   late final _CreateFileWDart createFile = _lib
       .lookupFunction<_CreateFileWNative, _CreateFileWDart>('CreateFileW');
@@ -217,8 +313,7 @@ class _Kernel32 {
         'FlushFileBuffers',
       );
 
-  static int lastError() => DynamicLibrary.process()
-      .lookupFunction<Int32 Function(), int Function()>('GetLastError')();
+  int lastError() => _getLastError();
 }
 
 /// `DCB` de `win32con.h`. Se declara completo (28 bytes) con el formato exacto
@@ -306,7 +401,7 @@ void _writeSync(String port, int baudRate, Uint8List bytes, int timeoutMs) {
       0,
     );
     if (handle == _invalidHandleValue) {
-      final code = _Kernel32.lastError();
+      final code = api.lastError();
       throw _SerialError(_describeOpen(port, code));
     }
 
@@ -356,7 +451,7 @@ void _writeSync(String port, int baudRate, Uint8List bytes, int timeoutMs) {
           buffer.asTypedList(chunk.length).setAll(0, chunk);
           final ok = api.writeFile(handle, buffer, chunk.length, written, 0);
           if (ok == 0) {
-            final code = _Kernel32.lastError();
+            final code = api.lastError();
             throw _SerialError(_describeWrite(port, code));
           }
           if (written.value != chunk.length) {

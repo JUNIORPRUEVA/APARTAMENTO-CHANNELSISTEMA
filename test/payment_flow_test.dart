@@ -49,6 +49,8 @@ void main() {
         issuerAddress: 'Av. Independencia 45',
         issuerPhone: '809-555-0000',
         printerName: 'EPSON TM-T20',
+        printerTarget: 'EPSON TM-T20',
+        printerTransport: PrinterTransport.windows,
         receiptPrefix: 'REC',
       ),
     );

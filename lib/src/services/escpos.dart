@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../core/formatters.dart';
 import '../data/finance_models.dart';
+import 'printer_profile.dart';
 
 /// Genera los bytes ESC/POS del recibo para una impresora térmica conectada por
 /// puerto serie (impresoras Bluetooth SPP / RFCOMM con driver de puerto COM).
@@ -14,8 +15,11 @@ import '../data/finance_models.dart';
 ///   con `ESC t 2`, para que á é í ó ú ñ ¿ ¡ salgan legibles en la mayoría de
 ///   impresoras ESC/POS. Si una impresora ignora `ESC t`, los acentos pueden
 ///   salir mal: por eso existe `asciiOnly`, que translitera a ASCII puro.
-/// * El ancho se calcula en caracteres a partir del ancho del papel
-///   (80 mm → 48 columnas, 58 mm → 32 columnas con la fuente A).
+/// * El ancho **no** se toma del nombre del papel: sale del perfil calibrado
+///   ([PrinterProfile.effectivePrintableDots]). Un perfil sin calibrar usa un
+///   valor conservador para no recortar dígitos del monto.
+/// * **No se envía corte** (`GS V`) salvo que el perfil diga que el equipo tiene
+///   cortador. La 2C-P80-C es de rasgado manual.
 ///
 /// Esta clase es pura: no toca disco, ni red, ni dispositivos. Se puede probar
 /// comparando los bytes generados.
@@ -25,24 +29,33 @@ class EscPosReceipt {
   static const int _esc = 0x1B;
   static const int _gs = 0x1D;
 
-  /// Columnas de la fuente A para el ancho de papel indicado.
-  static int columnsFor(int widthMm) => widthMm == 58 ? 32 : 48;
+  /// Columnas de la fuente A para un ancho de papel, sin calibración.
+  static int columnsFor(int widthMm) =>
+      PrinterProfile(paperWidthMm: widthMm).columns;
 
-  /// Construye el flujo completo: inicialización, contenido, avance y corte.
+  /// Construye el flujo completo del recibo: inicialización, contenido y
+  /// avance de papel para rasgar a mano.
   ///
-  /// [asciiOnly] translitera los acentos (á → a) en lugar de usar CP850.
+  /// [profile] aporta ancho calibrado, márgenes, codificación y modo de corte.
   static Uint8List build(
     ReceiptRecord record, {
-    int widthMm = 80,
-    bool asciiOnly = false,
-    bool cut = true,
+    PrinterProfile profile = const PrinterProfile(),
+    // Compatibilidad con llamadas antiguas.
+    int? widthMm,
+    bool? asciiOnly,
   }) {
-    final cols = columnsFor(widthMm);
-    final b = _Writer(asciiOnly: asciiOnly, columns: cols);
+    final p = widthMm == null && asciiOnly == null
+        ? profile
+        : profile.copyWith(
+            paperWidthMm: widthMm ?? profile.paperWidthMm,
+            asciiOnly: asciiOnly ?? profile.asciiOnly,
+          );
+    final cols = p.columns;
+    final b = _Writer(asciiOnly: p.asciiOnly, columns: cols);
 
     // Inicializa y fija la página de códigos CP850.
     b.raw([_esc, 0x40]);
-    if (!asciiOnly) b.raw([_esc, 0x74, 0x02]);
+    if (!p.asciiOnly) b.raw([_esc, 0x74, 0x02]);
 
     final data = record.snapshot;
     String text(String key) => (data[key]?.toString() ?? '').trim();
@@ -78,7 +91,9 @@ class EscPosReceipt {
     }
     b.field('Inquilino', text('tenantName'), cols);
     if (text('tenantCedula').isNotEmpty) {
-      b.field('Cédula', maskCedula(text('tenantCedula')), cols);
+      // En papel se enmascara con `X`: el `•` viaja como 0x07 y muchas
+      // impresoras lo tratan como BEL (no lo dibujan).
+      b.field('Cédula', maskCedula(text('tenantCedula'), hide: 'X'), cols);
     }
     b.rule(cols);
 
@@ -127,12 +142,122 @@ class EscPosReceipt {
       cols,
     );
 
-    // Avance de papel y corte (nunca se corta antes de imprimir todo).
+    // Avance de papel justo para rasgar a mano; nunca se corta antes de
+    // terminar de imprimir. El corte solo existe si el perfil dice que el
+    // equipo tiene cortador (no es el caso de la 2C-P80-C).
     b.raw([_esc, 0x64, 0x04]);
-    if (cut) b.raw([_gs, 0x56, 0x42, 0x00]);
+    if (p.cutMode == CutMode.autoCutter) b.raw([_gs, 0x56, 0x42, 0x00]);
 
     return b.takeBytes();
   }
+
+  /// Ticket de **calibración**: sirve para medir con una regla el ancho real
+  /// imprimible y comprobar acentos, alineaciones, tamaños y montos.
+  ///
+  /// No toca la base ni necesita un cobro: es puro texto ESC/POS.
+  static Uint8List buildCalibration({
+    PrinterProfile profile = const PrinterProfile(),
+    String model = '2C-P80-C',
+    String note = '',
+    DateTime? now,
+  }) {
+    final cols = profile.columns;
+    final b = _Writer(asciiOnly: profile.asciiOnly, columns: cols);
+    final stamp = now ?? DateTime.now();
+
+    b.raw([_esc, 0x40]);
+    if (!profile.asciiOnly) b.raw([_esc, 0x74, 0x02]);
+
+    b.center('CALIBRACION DE IMPRESORA', bold: true, doubleHeight: true);
+    b.center(model);
+    b.center(
+      '${formatDate(stamp)} '
+      '${stamp.hour.toString().padLeft(2, '0')}:'
+      '${stamp.minute.toString().padLeft(2, '0')}',
+    );
+    b.rule(cols);
+
+    // Regla de puntos: el último carácter visible indica el ancho real.
+    b.raw([0x1B, 0x61, 0x00]);
+    for (var i = 0; i < cols; i += 10) {
+      if (i == 0) continue;
+      final position = i.toString().padLeft(2, '0');
+      final width = cols - i - position.length;
+      if (width <= 0) break;
+      b.raw(
+        encodeLine(
+          '$position${' ' * width}$position',
+          asciiOnly: profile.asciiOnly,
+        ),
+      );
+      b.raw([0x0A]);
+    }
+    b.rule(cols);
+
+    b.center('IZQUIERDA / CENTRO / DERECHA', bold: true);
+    b.raw(encodeLine('|IZQUIERDA', asciiOnly: profile.asciiOnly));
+    b.raw([0x0A]);
+    b.center('|CENTRO|');
+    b.raw([0x1B, 0x61, 0x02]);
+    b.raw(encodeLine('DERECHA|', asciiOnly: profile.asciiOnly));
+    b.raw([0x0A]);
+    b.raw([0x1B, 0x61, 0x00]);
+
+    // Bordes: si alguna línea se sale del papel, se verá cortada aquí.
+    b.raw(encodeLine('|${'-' * (cols - 2)}|', asciiOnly: profile.asciiOnly));
+    b.raw([0x0A]);
+
+    b.center('TAMANOS DE LETRA', bold: true);
+    b.raw(
+      encodeLine(
+        'Normal: Acentos áéíóú ÁÉÍÓÚ ñÑ üÜ ¿¡',
+        asciiOnly: profile.asciiOnly,
+      ),
+    );
+    b.raw([0x0A]);
+    b.raw([0x1D, 0x21, 0x11]);
+    b.wrappedFlex('Doble: RD\$ 8,500', profile.columnsAt(2));
+    b.raw([0x1D, 0x21, 0x00]);
+
+    b.rule(cols);
+    b.field('Papel', '${profile.paperWidthMm} mm', cols);
+    b.field(
+      'Ancho util',
+      '${profile.printableWidthMm.toStringAsFixed(1)} mm '
+          '(${profile.effectivePrintableDots} puntos)',
+      cols,
+    );
+    b.field('Columnas', '$cols', cols);
+    b.field(
+      'Calibrado',
+      profile.isCalibrated ? 'Si' : 'No (valor conservador)',
+      cols,
+    );
+    b.field(
+      'Acentos',
+      profile.asciiOnly ? 'Sin acentos (ASCII)' : 'CP850',
+      cols,
+    );
+    b.field(
+      'Corte',
+      profile.cutMode == CutMode.manual ? 'Manual' : 'Auto',
+      cols,
+    );
+    if (note.trim().isNotEmpty) b.wrapped('Nota: ${note.trim()}', cols);
+    b.rule(cols);
+    b.wrapped(
+      'Mida con una regla la linea de borde. Si el texto se corta a la '
+      'derecha, reduzca el ancho util en Ajustes.',
+      cols,
+    );
+    b.center('FIN DE LA PRUEBA', bold: true);
+    b.raw([_esc, 0x64, 0x05]);
+    return b.takeBytes();
+  }
+
+  /// Codifica una línea completa (sin saltos) con la codificación del perfil.
+  static Uint8List encodeLine(String value, {bool asciiOnly = false}) =>
+      _Writer.encodeText(value, asciiOnly: asciiOnly);
 }
 
 /// Codificador de texto ESC/POS (CP850 o ASCII transliterado).
@@ -213,6 +338,15 @@ class _Writer {
   void wrapped(String value, int cols, {String indent = ''}) {
     for (final line in wrap(value, cols - indent.length)) {
       _text('$indent$line');
+    }
+  }
+
+  /// Igual que [wrapped] pero respetando el tamaño de letra ya fijado por
+  /// quien llama (se usa en el ticket de calibración).
+  void wrappedFlex(String value, int cols) {
+    for (final line in wrap(value, cols)) {
+      raw(encodeText(line, asciiOnly: asciiOnly));
+      raw([0x0A]);
     }
   }
 

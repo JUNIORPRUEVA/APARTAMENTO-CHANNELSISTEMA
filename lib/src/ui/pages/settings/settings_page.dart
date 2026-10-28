@@ -40,13 +40,20 @@ class _SettingsDialogState extends State<_SettingsDialog> {
 
   /// Destino elegido, con el formato `cola:<nombre>` o `serie:<COMn>`.
   String? _selectedTarget;
-  PrinterTransport _transport = PrinterTransport.windows;
+  PrinterTransport _transport = PrinterTransport.auto;
   bool _loadingPrinters = true;
   bool _printing = false;
   int _receiptWidth = 80;
   double _receiptMargin = 3.5;
   bool _asciiOnly = false;
+  int _printableDots = 0;
+  int _marginDots = 0;
+  int _baudRate = 9600;
+  String _statusMessage = '';
+  bool _statusOk = false;
   late final TextEditingController _exportDir;
+  late final TextEditingController _dotsController;
+  late final TextEditingController _marginDotsController;
 
   @override
   void initState() {
@@ -66,6 +73,15 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     _receiptMargin = owner.receiptMarginMm;
     _asciiOnly = owner.asciiOnly;
     _transport = owner.printerTransport;
+    _printableDots = owner.printerPrintableDots;
+    _marginDots = owner.printerMarginDots;
+    _baudRate = owner.printerBaudRate;
+    _dotsController = TextEditingController(
+      text: _printableDots == 0 ? '' : '$_printableDots',
+    );
+    _marginDotsController = TextEditingController(
+      text: _marginDots == 0 ? '' : '$_marginDots',
+    );
     if (owner.printerTarget != null && owner.printerTarget!.isNotEmpty) {
       _selectedTarget =
           '${owner.printerTransport == PrinterTransport.serial ? 'serie' : 'cola'}:'
@@ -96,15 +112,27 @@ class _SettingsDialogState extends State<_SettingsDialog> {
           _selectedTarget =
               '${preferred.kind == PrinterKind.serialCom ? 'serie' : 'cola'}:'
               '${preferred.endpoint}';
-          _transport = preferred.kind == PrinterKind.serialCom
-              ? PrinterTransport.serial
-              : PrinterTransport.windows;
         }
       });
+      // Con el destino ya elegido se muestra si responde o no.
+      await _refreshStatus();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingPrinters = false);
     }
+  }
+
+  Future<void> _refreshStatus() async {
+    final controller = AppScope.read(context);
+    final draft = _draftSettings();
+    final detection = await controller.detectPrinter(draft);
+    if (!mounted) return;
+    setState(() {
+      _statusOk = detection.found;
+      _statusMessage = detection.found
+          ? 'Impresora lista: ${detection.label}'
+          : detection.message;
+    });
   }
 
   /// Destino seleccionado en formato (transporte, destino).
@@ -134,12 +162,15 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       issuerAddress: _address.text.trim(),
       issuerPhone: _phone.text.trim(),
       printerName: label ?? target.target,
-      printerTransport: target.transport,
+      printerTransport: _transport,
       printerTarget: target.target,
       receiptPrefix: _prefix.text.trim().isEmpty ? 'REC' : _prefix.text.trim(),
       receiptWidthMm: _receiptWidth,
       receiptMarginMm: _receiptMargin,
       asciiOnly: _asciiOnly,
+      printerPrintableDots: _printableDots,
+      printerMarginDots: _marginDots,
+      printerBaudRate: _baudRate,
       backupExportDir: _exportDir.text.trim(),
     );
   }
@@ -152,6 +183,8 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     _phone.dispose();
     _prefix.dispose();
     _exportDir.dispose();
+    _dotsController.dispose();
+    _marginDotsController.dispose();
     super.dispose();
   }
 
@@ -165,13 +198,16 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     final controller = AppScope.read(context);
     setState(() => _printing = true);
     try {
-      final result = await controller.printTestPage(_draftSettings());
+      final result = await controller.printCalibration(_draftSettings());
       if (!mounted) return;
       reportOutcome(
         context,
         result.ok ? null : result.message,
-        successMessage: 'Prueba enviada a la impresora.',
+        successMessage: result.ok
+            ? 'Ticket de calibración enviado a la impresora.'
+            : '',
       );
+      await _refreshStatus();
     } catch (error) {
       if (!mounted) return;
       reportOutcome(
@@ -565,22 +601,50 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     Text('Impresora', style: appText.sectionTitle),
                     const SizedBox(height: 4),
                     const Text(
-                      'Elija cómo se entrega el recibo. Si la impresora '
-                      'Bluetooth aparece como puerto COM, use "puerto serie". '
-                      'Las impresoras Bluetooth LE (sin puerto COM) no son '
-                      'compatibles con esta versión.',
+                      'La aplicación busca la impresora sola. Si no aparece, '
+                      'empareje la 2C-P80-C en Configuración › Bluetooth y '
+                      'otros dispositivos y pulse Actualizar.',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: AppColors.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: 250,
+                      child: LabeledField(
+                        label: 'Conexión',
+                        child: DropdownButtonFormField<PrinterTransport>(
+                          initialValue: _transport,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(
+                              value: PrinterTransport.auto,
+                              child: Text('Automático'),
+                            ),
+                            DropdownMenuItem(
+                              value: PrinterTransport.windows,
+                              child: Text('Windows'),
+                            ),
+                            DropdownMenuItem(
+                              value: PrinterTransport.serial,
+                              child: Text('Bluetooth (COM)'),
+                            ),
+                          ],
+                          onChanged: (value) => setState(() {
+                            _transport = value ?? PrinterTransport.auto;
+                          }),
+                          decoration: const InputDecoration(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: _loadingPrinters
                               ? const Text(
-                                  'Buscando impresoras y puertos...',
+                                  'Buscando impresora...',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: AppColors.textMuted,
@@ -623,74 +687,160 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                             _loadPrinters();
                           },
                         ),
-                      ],
-                    ),
-                    if (!_loadingPrinters && _printers.isEmpty) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        'No se detectaron impresoras de Windows ni puertos '
-                        'serie. Empareje la impresora en Configuración › '
-                        'Bluetooth y otros dispositivos, y vuelva a Actualizar.',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 190,
-                          child: LabeledField(
-                            label: 'Margen a cada lado (mm)',
-                            child: TextField(
-                              controller: TextEditingController(
-                                text: _receiptMargin.toStringAsFixed(1),
-                              ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              onChanged: (value) {
-                                final parsed = double.tryParse(
-                                  value.replaceAll(',', '.'),
-                                );
-                                if (parsed != null && parsed > 0) {
-                                  _receiptMargin = parsed.clamp(0.5, 15.0);
-                                }
-                              },
-                              decoration: const InputDecoration(
-                                hintText: '3.5',
-                              ),
-                            ),
-                          ),
-                        ),
+                        const SizedBox(width: 8),
                         PrimaryButton(
-                          label: 'Imprimir prueba',
+                          label: 'Probar',
                           icon: Icons.print_outlined,
+                          height: 36,
                           onPressed: _printing ? null : _testPrint,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    CheckboxListTile(
-                      value: _asciiOnly,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text(
-                        'Imprimir sin acentos (si salen símbolos raros)',
-                        style: TextStyle(fontSize: 12.5),
-                      ),
-                      onChanged: (value) =>
-                          setState(() => _asciiOnly = value ?? false),
+                    const SizedBox(height: 8),
+                    // Estado real de la conexión (sin tecnicismos ni trazas).
+                    Row(
+                      children: [
+                        Icon(
+                          _statusOk
+                              ? Icons.check_circle_outline
+                              : Icons.info_outline,
+                          size: 15,
+                          color: _statusOk
+                              ? AppColors.greenFg
+                              : AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _statusMessage.isEmpty
+                                ? 'Sin comprobar todavía.'
+                                : _statusMessage,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: _statusOk
+                                  ? AppColors.greenFg
+                                  : AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 18),
-                    const Divider(height: 1),
+                    const SizedBox(height: 4),
+                    Theme(
+                      data: Theme.of(
+                        context,
+                      ).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 6),
+                        title: const Text(
+                          'Avanzado (solo si el ticket sale cortado)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        children: [
+                          LabeledField(
+                            label: 'Ancho útil calibrado (puntos)',
+                            child: TextField(
+                              controller: _dotsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                hintText: 'Vacío = automático (576 en 80 mm)',
+                              ),
+                              onChanged: (value) {
+                                final parsed = int.tryParse(
+                                  value.replaceAll(RegExp(r'[^0-9]'), ''),
+                                );
+                                _printableDots = parsed == null || parsed < 96
+                                    ? 0
+                                    : (parsed > 1200 ? 1200 : parsed);
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: LabeledField(
+                                  label: 'Margen de contenido (puntos)',
+                                  child: TextField(
+                                    controller: _marginDotsController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      hintText: '0',
+                                    ),
+                                    onChanged: (value) {
+                                      final parsed = int.tryParse(
+                                        value.replaceAll(RegExp(r'[^0-9]'), ''),
+                                      );
+                                      _marginDots = parsed == null || parsed < 0
+                                          ? 0
+                                          : (parsed > 240 ? 240 : parsed);
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: LabeledField(
+                                  label: 'Velocidad (baudios)',
+                                  child: DropdownButtonFormField<int>(
+                                    initialValue: _baudRate,
+                                    isExpanded: true,
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 9600,
+                                        child: Text('9600'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 19200,
+                                        child: Text('19200'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 38400,
+                                        child: Text('38400'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 115200,
+                                        child: Text('115200'),
+                                      ),
+                                    ],
+                                    onChanged: (value) => setState(
+                                      () => _baudRate = value ?? 9600,
+                                    ),
+                                    decoration: const InputDecoration(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          CheckboxListTile(
+                            value: _asciiOnly,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: const Text(
+                              'Imprimir sin acentos (si salen símbolos raros)',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _asciiOnly = value ?? false),
+                          ),
+                          const Text(
+                            'El ticket de calibración trae un marco y una '
+                            'regla: si el marco no sale completo, baje el '
+                            'ancho útil hasta que entre entero.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Text('Datos y respaldo', style: appText.sectionTitle),
                     const SizedBox(height: 8),

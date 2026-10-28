@@ -52,24 +52,38 @@ En el apartamento → **Finalizar contrato**. Si queda renta pendiente o depósi
 sin liquidar, el sistema lo avisa antes. El historial del inquilino anterior se
 conserva y se puede consultar con el filtro del historial.
 
-## Configurar la impresora (una sola vez)
+## Configurar la impresora 2C-P80-C (una sola vez)
 
-**Engranaje** → sección **Impresora**:
+1. Encienda la impresora (batería cargada) y cargue el rollo de 80 mm.
+2. **Windows** → Configuración → Bluetooth y otros dispositivos → *Agregar
+   dispositivo* → *Bluetooth* → elija **2C-P80-C**. Windows crea un puerto
+   **saliente** tipo `COM5` (visible en *Administrador de dispositivos →
+   Puertos COM y LPT*).
+3. Abra la aplicación → **Engranaje** → sección **Impresora** → **Actualizar**.
+4. Elija el puerto que dice *Bluetooth* (por ejemplo
+   `COM5 · Standard Serial over Bluetooth link`). **No** elija uno que diga
+   *entrante*: ese no sirve para imprimir.
+5. Pulse **Probar** y revise el ticket de calibración:
+   * El ticket trae un **marco** y una **regla de columnas**: si el marco sale
+     completo, el ancho está bien.
+   * Si el marco sale cortado por la derecha, abra **Avanzado**, baje
+     *Ancho útil calibrado (puntos)* y repita. Regla: **mm impresos × 8 =
+     puntos** (72 mm → 576; 64 mm → 512).
+   * Si los acentos salen como símbolos raros, marque **Imprimir sin acentos**.
+6. Pulse **Guardar**. No hace falta repetir esto cada día.
 
-1. Pulse **Actualizar**.
-2. Elija en la lista:
-   * la **impresora instalada en Windows**, o
-   * el **puerto COM** de la impresora Bluetooth (`COM3`, `COM5`…; se marca
-     *Bluetooth probable*).
-3. Pulse **Imprimir prueba** y revise el ticket:
-   * Si los acentos salen como símbolos raros, marque **Imprimir sin acentos** y
-     repita la prueba.
-   * Si no sale nada, revise que la impresora esté encendida, con papel y
-     emparejada en Windows.
-4. Pulse **Guardar**.
+> Notas honestas:
+> * Si la impresora **no** crea un puerto COM (solo Bluetooth LE), esta versión
+>   no puede imprimir por Bluetooth; use el cable USB + driver del fabricante y
+>   el modo **Windows**.
+> * El aviso "Enviado a la impresora" significa *enviado*, no *impreso*: revise
+>   el papel. Si no salió, el cobro sigue guardado y puede reimprimirse.
 
-> Las impresoras **Bluetooth LE** (las que no crean un puerto COM) no son
-> compatibles con esta versión.
+## Rutina diaria (3 pasos)
+
+1. **Abrir** la aplicación (doble clic).
+2. **Cobrar**: elegir el apartamento y pulsar **Cobrar**.
+3. Verificar monto y período → **Guardar e imprimir recibo**.
 
 ## Copias de seguridad
 

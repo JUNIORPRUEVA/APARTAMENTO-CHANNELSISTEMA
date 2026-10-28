@@ -17,7 +17,7 @@
 ///   borra ni se edita un pago.
 library;
 
-const int kSchemaVersion = 3;
+const int kSchemaVersion = 4;
 
 /// Esquema completo para una base nueva (versión actual).
 const List<String> kSchemaStatements = <String>[
@@ -41,6 +41,9 @@ const List<String> kSchemaStatements = <String>[
     receipt_width_mm  INTEGER NOT NULL DEFAULT 80,
     receipt_margin_mm REAL NOT NULL DEFAULT 3.5,
     ascii_only        INTEGER NOT NULL DEFAULT 0 CHECK (ascii_only IN (0, 1)),
+    printer_printable_dots INTEGER NOT NULL DEFAULT 0,
+    printer_margin_dots    INTEGER NOT NULL DEFAULT 0,
+    printer_baud_rate      INTEGER NOT NULL DEFAULT 9600,
     backup_export_dir TEXT,
     updated_at        TEXT NOT NULL
   )
@@ -455,4 +458,20 @@ const List<String> kMigrationV3Statements = <String>[
   'ALTER TABLE owner_settings ADD COLUMN printer_target TEXT',
   'ALTER TABLE owner_settings ADD COLUMN receipt_margin_mm REAL NOT NULL DEFAULT 3.5',
   'ALTER TABLE owner_settings ADD COLUMN ascii_only INTEGER NOT NULL DEFAULT 0',
+];
+
+/// Pasos de la migración 3 → 4: perfil de impresión calibrado.
+///
+/// * `printer_printable_dots`: ancho imprimible **medido** en puntos del
+///   cabezal. `0` significa "sin calibrar" y el sistema usa un valor
+///   conservador (576 puntos en 80 mm, 384 en 58 mm) para no recortar nada.
+/// * `printer_margin_dots`: margen de contenido extra a cada lado.
+/// * `printer_baud_rate`: velocidad del puerto serie (9600 por defecto).
+///
+/// No se toca nada de lo existente: los valores por defecto reproducen el
+/// comportamiento anterior.
+const List<String> kMigrationV4Statements = <String>[
+  'ALTER TABLE owner_settings ADD COLUMN printer_printable_dots INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE owner_settings ADD COLUMN printer_margin_dots INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE owner_settings ADD COLUMN printer_baud_rate INTEGER NOT NULL DEFAULT 9600',
 ];

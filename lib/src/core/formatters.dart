@@ -136,18 +136,24 @@ String formatCedula(String raw) {
 /// dígitos y los 2 últimos, que bastan para identificar el comprobante.
 /// `001-1234567-8` → `001-•••••••-78`. Si el valor no tiene 11 dígitos se
 /// ocultan todos los dígitos salvo los dos últimos.
-String maskCedula(String raw) {
+///
+/// [hide] permite elegir el carácter de ocultación. En papel térmico se usa
+/// `X` porque el punto volcado (`•`) viaja como el byte 0x07, que muchas
+/// impresoras interpretan como BEL y no dibujan.
+String maskCedula(String raw, {String hide = '•'}) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) return '';
   final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+  final dots = hide * 7;
   if (digits.length == 11) {
-    return '${digits.substring(0, 3)}-•••••••-${digits.substring(9)}';
+    return '${digits.substring(0, 3)}-$dots-${digits.substring(9)}';
   }
+  final hidden = hide * 4;
   if (digits.length > 2) {
-    return '••••${digits.substring(digits.length - 2)}';
+    return '$hidden${digits.substring(digits.length - 2)}';
   }
-  if (digits.isEmpty) return '••••';
-  return '••••$digits';
+  if (digits.isEmpty) return hidden;
+  return '$hidden$digits';
 }
 
 /// Fecha segura dentro del mes (evita 31 de febrero, etc.).

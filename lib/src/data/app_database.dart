@@ -85,6 +85,9 @@ class AppDatabase {
       } else if (current == 2) {
         _applyStep(kMigrationV3Statements, 3);
         current = 3;
+      } else if (current == 3) {
+        _applyStep(kMigrationV4Statements, 4);
+        current = 4;
       } else {
         throw AppFailure(
           'Falta una migración de la base de datos (versión $current).',

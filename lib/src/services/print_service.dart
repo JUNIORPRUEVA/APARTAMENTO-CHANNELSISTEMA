@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../data/finance_models.dart';
 import '../data/models.dart';
 import 'escpos.dart';
+import 'printer_profile.dart';
 import 'receipt_document_service.dart';
 import 'serial_transport.dart';
 
@@ -146,17 +147,14 @@ abstract interface class SerialPrintGateway {
   Future<PrintResult> printReceipt(
     ReceiptRecord record, {
     required String port,
-    int baudRate = 9600,
-    int widthMm = 80,
-    bool asciiOnly = false,
+    PrinterProfile profile = const PrinterProfile(),
   });
 
-  /// Hoja de prueba: verifica que el puerto responde y cómo salen los acentos.
-  Future<PrintResult> printTestPage({
+  /// Ticket de calibración: mide el ancho real y comprueba acentos y alineado.
+  Future<PrintResult> printCalibration({
     required String port,
-    int baudRate = 9600,
-    int widthMm = 80,
-    bool asciiOnly = false,
+    PrinterProfile profile = const PrinterProfile(),
+    String model = '',
     String note = '',
   });
 }
@@ -178,49 +176,25 @@ class Win32SerialPrintGateway implements SerialPrintGateway {
   Future<PrintResult> printReceipt(
     ReceiptRecord record, {
     required String port,
-    int baudRate = 9600,
-    int widthMm = 80,
-    bool asciiOnly = false,
+    PrinterProfile profile = const PrinterProfile(),
   }) {
-    final bytes = EscPosReceipt.build(
-      record,
-      widthMm: widthMm,
-      asciiOnly: asciiOnly,
-    );
-    return _send(port, baudRate, bytes);
+    final bytes = EscPosReceipt.build(record, profile: profile);
+    return _send(port, profile.baudRate, bytes);
   }
 
   @override
-  Future<PrintResult> printTestPage({
+  Future<PrintResult> printCalibration({
     required String port,
-    int baudRate = 9600,
-    int widthMm = 80,
-    bool asciiOnly = false,
+    PrinterProfile profile = const PrinterProfile(),
+    String model = '',
     String note = '',
   }) {
-    final cols = EscPosReceipt.columnsFor(widthMm);
-    final lines = <String>[
-      'CONTROL DE ALQUILERES',
-      'Prueba de impresora',
-      '-' * cols,
-      'Puerto: $port - $baudRate baudios',
-      'Papel: $widthMm mm - $cols columnas',
-      'Acentos: áéíóú ñÑ ¿¡ RD\$ 1,500.00',
-      '-' * cols,
-      'Si lee esta línea, la impresora responde.',
-      'Si el texto sale con símbolos raros, marque',
-      '"Imprimir sin acentos" en Ajustes.',
-      if (note.trim().isNotEmpty) note.trim(),
-    ];
-    final buffer = <int>[0x1B, 0x40];
-    if (!asciiOnly) buffer.addAll([0x1B, 0x74, 0x02]);
-    for (final line in lines) {
-      buffer.addAll(EscPosText.encode(line, asciiOnly: asciiOnly));
-      buffer.add(0x0A);
-    }
-    buffer.addAll([0x1B, 0x64, 0x04]);
-    buffer.addAll([0x1D, 0x56, 0x42, 0x00]);
-    return _send(port, baudRate, Uint8List.fromList(buffer));
+    final bytes = EscPosReceipt.buildCalibration(
+      profile: profile,
+      model: model.trim().isEmpty ? 'Impresora termica' : model.trim(),
+      note: note,
+    );
+    return _send(port, profile.baudRate, bytes);
   }
 
   Future<PrintResult> _send(String port, int baudRate, Uint8List bytes) async {
@@ -234,7 +208,12 @@ class Win32SerialPrintGateway implements SerialPrintGateway {
     }
     try {
       await _transport.send(port, bytes, baudRate: baudRate);
-      return PrintResult(ok: true, message: 'Enviado a la impresora ($port).');
+      return PrintResult(
+        ok: true,
+        message:
+            'Enviado a la impresora ($port). No hay confirmación del '
+            'dispositivo: revise el papel.',
+      );
     } catch (error) {
       return PrintResult(
         ok: false,
@@ -246,10 +225,40 @@ class Win32SerialPrintGateway implements SerialPrintGateway {
   }
 
   static String _cleanMessage(Object error) {
-    final text = error.toString();
-    if (text.startsWith('Exception: ')) return text.substring(11);
+    var text = error.toString();
+    for (final prefix in const ['Exception: ', 'AppFailure: ']) {
+      if (text.startsWith(prefix)) text = text.substring(prefix.length);
+    }
     return text;
   }
+}
+
+/// Resultado de buscar la impresora configurada en el equipo.
+class PrinterDetection {
+  const PrinterDetection({
+    required this.found,
+    this.kind,
+    this.endpoint,
+    this.label = '',
+    this.message = '',
+  });
+
+  final bool found;
+  final PrinterKind? kind;
+
+  /// Cola de Windows o `COM5`.
+  final String? endpoint;
+
+  /// Nombre para mostrar (incluye el nombre amistoso del puerto si se conoce).
+  final String label;
+
+  /// Mensaje en español listo para el aviso.
+  final String message;
+
+  static const PrinterDetection missing = PrinterDetection(
+    found: false,
+    message: 'No se encontró la impresora. Revise Bluetooth.',
+  );
 }
 
 /// Commit → PDF → impresión. La impresión nunca forma parte de la transacción
@@ -269,6 +278,8 @@ class ReceiptPrintService {
   /// Salida a puerto serie con ESC/POS.
   final SerialPrintGateway serialGateway;
 
+  static final RegExp _comPattern = RegExp(r'^COM\d+$', caseSensitive: false);
+
   Future<List<PrinterRef>> printers() async {
     final windows = await gateway.listPrinters();
     final ports = await serialGateway.listPorts();
@@ -276,22 +287,118 @@ class ReceiptPrintService {
       ...windows,
       for (final port in ports)
         PrinterRef(
-          name: port.name,
+          name: port.label,
           isDefault: false,
           kind: PrinterKind.serialCom,
           target: port.name,
-          detail: port.likelyBluetooth ? 'Bluetooth probable' : 'Puerto serie',
+          detail: port.detail,
         ),
     ];
   }
 
+  /// Decide por dónde imprimir, sin adivinar.
+  ///
+  /// En modo `auto` el orden es: destino ya configurado (COM o cola) → único
+  /// puerto serie de tipo Bluetooth presente → nada (y se avisa). Nunca se
+  /// elige una impresora al azar entre varias.
+  Future<PrinterDetection> detect(OwnerSettings settings) async {
+    final target = (settings.printerTarget ?? '').trim();
+    final wanted = settings.printerTransport;
+
+    // Modo Windows sin destino: se usa el diálogo del sistema (no es una
+    // impresora "detectada", pero sí un camino válido para imprimir).
+    if (wanted == PrinterTransport.windows && target.isEmpty) {
+      return const PrinterDetection(
+        found: true,
+        kind: PrinterKind.windowsQueue,
+        endpoint: null,
+        label: 'diálogo de Windows',
+        message:
+            'Se abrirá el diálogo de impresión de Windows para elegir '
+            'impresora.',
+      );
+    }
+
+    if (wanted != PrinterTransport.serial && target.isNotEmpty) {
+      final queues = await gateway.listPrinters();
+      if (queues.any((queue) => queue.endpoint == target)) {
+        return PrinterDetection(
+          found: true,
+          kind: PrinterKind.windowsQueue,
+          endpoint: target,
+          label: target,
+          message: 'Impresora lista: $target.',
+        );
+      }
+    }
+
+    final ports = await serialGateway.listPorts();
+    if (target.isNotEmpty) {
+      final match = ports.where(
+        (port) => port.name.toUpperCase() == target.toUpperCase(),
+      );
+      if (match.isNotEmpty) {
+        return PrinterDetection(
+          found: true,
+          kind: PrinterKind.serialCom,
+          endpoint: match.first.name,
+          label: match.first.label,
+          message: 'Impresora lista: ${match.first.label}.',
+        );
+      }
+      // El destino dice COM pero el puerto no existe (desemparejada, apagada).
+      if (_comPattern.hasMatch(target)) {
+        return PrinterDetection(
+          found: false,
+          message:
+              'El puerto $target no está disponible. Revise que la impresora '
+              'esté encendida y emparejada por Bluetooth.',
+        );
+      }
+      return const PrinterDetection(
+        found: false,
+        message:
+            'No se encontró la impresora seleccionada. Revise Bluetooth o '
+            'elija otra en Ajustes.',
+      );
+    }
+
+    if (wanted == PrinterTransport.windows) {
+      return const PrinterDetection(
+        found: false,
+        message:
+            'No hay impresora elegida en Windows. Selecciónela en Ajustes.',
+      );
+    }
+
+    // Modo automático sin destino: solo si hay UN puerto Bluetooth claro.
+    final bluetoothPorts = ports
+        .where((port) => port.likelyBluetooth && port.canSend)
+        .toList(growable: false);
+    if (bluetoothPorts.length == 1) {
+      final only = bluetoothPorts.first;
+      return PrinterDetection(
+        found: true,
+        kind: PrinterKind.serialCom,
+        endpoint: only.name,
+        label: only.label,
+        message: 'Impresora lista: ${only.label}.',
+      );
+    }
+    if (bluetoothPorts.length > 1) {
+      return const PrinterDetection(
+        found: false,
+        message: 'Hay varios puertos Bluetooth. Elija la impresora en Ajustes.',
+      );
+    }
+    return PrinterDetection.missing;
+  }
+
   /// Imprime el recibo según la configuración guardada.
   ///
-  /// * Transporte `serial`: envía ESC/POS al puerto y, además, deja el PDF
-  ///   generado para que el recibo exista aunque la impresora falle.
-  /// * Transporte `windows`: envía el PDF a la cola configurada.
-  /// * Sin destino configurado: abre el diálogo de impresión de Windows (el
-  ///   único caso donde aparece una ventana; nunca ocurre en el cobro).
+  /// * Puerto serie: envía ESC/POS y deja el PDF generado igualmente.
+  /// * Cola de Windows: envía el PDF a la cola configurada.
+  /// * Sin destino: abre el diálogo de impresión de Windows (única ventana).
   Future<PrintResult> printReceipt(
     ReceiptRecord record, {
     required OwnerSettings settings,
@@ -305,21 +412,21 @@ class ReceiptPrintService {
       );
     }
 
-    if (settings.printerTransport == PrinterTransport.serial) {
-      final port = (settings.printerTarget ?? '').trim();
-      if (port.isEmpty) {
-        return const PrintResult(
-          ok: false,
-          message:
-              'No hay puerto serie configurado. El cobro está guardado y el '
-              'PDF quedó disponible en el historial.',
-        );
-      }
+    final route = await detect(settings);
+    if (!route.found) {
+      return PrintResult(
+        ok: false,
+        message:
+            '${route.message} El cobro está guardado y el recibo quedó en el '
+            'historial para reimprimir.',
+      );
+    }
+
+    if (route.kind == PrinterKind.serialCom) {
       return serialGateway.printReceipt(
         record,
-        port: port,
-        widthMm: settings.receiptWidthMm,
-        asciiOnly: settings.asciiOnly,
+        port: route.endpoint!,
+        profile: settings.printerProfile,
       );
     }
 
@@ -327,11 +434,17 @@ class ReceiptPrintService {
       final bytes = await File(path).readAsBytes();
       final result = await gateway.print(
         pdfBytes: bytes,
-        printerName: (settings.printerTarget ?? settings.printerName),
+        printerName: route.endpoint,
         jobName: 'Recibo ${record.label}',
       );
       if (!result.ok) return result;
-      return const PrintResult(ok: true, message: 'Enviado a la impresora.');
+      return PrintResult(
+        ok: true,
+        message: route.endpoint == null
+            ? 'Recibo enviado al diálogo de impresión de Windows.'
+            : 'Enviado a la impresora (${route.endpoint}). No hay '
+                  'confirmación del dispositivo: revise el papel.',
+      );
     } catch (_) {
       return const PrintResult(
         ok: false,
@@ -340,26 +453,37 @@ class ReceiptPrintService {
     }
   }
 
-  /// Hoja de prueba con la configuración actual. No guarda nada.
-  Future<PrintResult> printTestPage(OwnerSettings settings) async {
-    if (settings.printerTransport == PrinterTransport.serial) {
-      return serialGateway.printTestPage(
-        port: (settings.printerTarget ?? '').trim(),
-        widthMm: settings.receiptWidthMm,
-        asciiOnly: settings.asciiOnly,
+  /// Ticket de calibración con la configuración indicada (no guarda nada).
+  ///
+  /// En cola de Windows se imprime un PDF con reglas y montos; en puerto serie
+  /// se envía el ticket ESC/POS nativo, que es el que permite **medir** con una
+  /// regla el ancho real y ajustar el perfil.
+  Future<PrintResult> printCalibration(
+    OwnerSettings settings, {
+    String model = '2C-P80-C',
+  }) async {
+    final route = await detect(settings);
+    if (!route.found) {
+      return PrintResult(ok: false, message: route.message);
+    }
+    final profile = settings.printerProfile;
+
+    if (route.kind == PrinterKind.serialCom) {
+      return serialGateway.printCalibration(
+        port: route.endpoint!,
+        profile: profile,
+        model: model,
       );
     }
-    final name = (settings.printerTarget ?? settings.printerName) ?? '';
-    if (name.trim().isEmpty) {
-      return const PrintResult(
-        ok: false,
-        message: 'Elija una impresora para la prueba.',
-      );
-    }
+
+    final bytes = await documents.buildCalibrationDocument(
+      profile: profile,
+      model: model,
+    );
     return gateway.print(
-      pdfBytes: await documents.buildTestDocument(),
-      printerName: name,
-      jobName: 'Prueba de impresora',
+      pdfBytes: bytes,
+      printerName: route.endpoint,
+      jobName: 'Calibración de impresora',
     );
   }
 }

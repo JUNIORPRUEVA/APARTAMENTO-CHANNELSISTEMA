@@ -9,6 +9,7 @@ import '../core/formatters.dart';
 import '../data/app_paths.dart';
 import '../data/finance_models.dart';
 import '../data/finance_repository.dart';
+import 'printer_profile.dart';
 
 class DocumentResult {
   const DocumentResult({required this.ok, this.path, this.error});
@@ -37,7 +38,9 @@ class ReceiptDocumentService {
     required this.paths,
     required this.currentWidthMm,
     double Function()? currentMarginMm,
-  }) : _currentMarginMm = currentMarginMm;
+    PrinterProfile Function()? currentProfile,
+  }) : _currentMarginMm = currentMarginMm,
+       _currentProfile = currentProfile;
 
   final FinanceRepository finance;
   final AppPaths paths;
@@ -48,8 +51,18 @@ class ReceiptDocumentService {
   /// Margen imprimible configurado en Ajustes.
   final double Function()? _currentMarginMm;
 
+  /// Perfil calibrado actual (ancho imprimible en puntos).
+  final PrinterProfile Function()? _currentProfile;
+
   double get currentMarginMm =>
       (_currentMarginMm?.call() ?? 3.5).clamp(0.0, 15.0).toDouble();
+
+  PrinterProfile get currentProfile =>
+      _currentProfile?.call() ??
+      PrinterProfile(
+        paperWidthMm: currentWidthMm(),
+        marginDots: (currentMarginMm * PrinterProfile.dotsPerMm).round(),
+      );
 
   static pw.Font? _regular;
   static pw.Font? _bold;
@@ -96,6 +109,7 @@ class ReceiptDocumentService {
     ReceiptRecord record, {
     int widthMm = 80,
     double marginMm = 3.5,
+    PrinterProfile? profile,
   }) async {
     await _ensureFonts();
     final font = _regular!;
@@ -103,8 +117,22 @@ class ReceiptDocumentService {
 
     final data = record.snapshot;
     final kind = record.kind;
-    final width = (widthMm == 58 ? 58 : 80) * PdfPageFormat.mm;
-    final margin = marginMm <= 0 ? 3.5 : (marginMm > 15 ? 15.0 : marginMm);
+    final paperWidth = widthMm == 58 ? 58 : 80;
+    final width = paperWidth * PdfPageFormat.mm;
+    // El margen nunca puede ser menor que lo que exige el cabezal: si el ancho
+    // imprimible calibrado es 72 mm, un margen de 3,5 mm (73 mm útiles) se
+    // recortaría a la derecha. Se toma el mayor de los dos.
+    final effectiveProfile =
+        profile ??
+        PrinterProfile(
+          paperWidthMm: paperWidth,
+          marginDots: (marginMm * PrinterProfile.dotsPerMm).round(),
+        );
+    var margin = marginMm <= 0 ? 3.5 : (marginMm > 15 ? 15.0 : marginMm);
+    if (effectiveProfile.paperWidthMm == paperWidth) {
+      final required = effectiveProfile.effectiveMarginMm(margin);
+      if (required > margin) margin = required;
+    }
     final format = PdfPageFormat(
       width,
       double.infinity,
@@ -309,22 +337,32 @@ class ReceiptDocumentService {
     return '$series-${record.number.toString().padLeft(8, '0')}.pdf';
   }
 
-  /// Hoja de prueba (mismo ancho que el recibo) para verificar la impresora.
-  /// No depende de la base ni del historial.
-  Future<Uint8List> buildTestDocument() async {
+  String pathFor(ReceiptRecord record) =>
+      p.join(paths.receiptsDir, fileNameFor(record));
+
+  /// Ticket de **calibración** en PDF (para imprimir por la cola de Windows).
+  ///
+  /// Muestra bordes al límite del área imprimible, un renglón en cada
+  /// alineación, la escala de columnas, acentos y montos en RD$, más los datos
+  /// del perfil. Con una regla se comprueba si el equipo imprime los 80 mm
+  /// completos o solo una parte, y se ajusta el ancho útil en Ajustes.
+  Future<Uint8List> buildCalibrationDocument({
+    PrinterProfile? profile,
+    String model = '',
+  }) async {
     await _ensureFonts();
     final font = _regular!;
     final bold = _bold!;
-    final widthMm = currentWidthMm();
-    final margin = currentMarginMm;
+    final p = profile ?? currentProfile;
+    final margin = p.effectiveMarginMm(0);
     final format = PdfPageFormat(
-      (widthMm == 58 ? 58 : 80) * PdfPageFormat.mm,
+      p.paperWidthMm * PdfPageFormat.mm,
       double.infinity,
       marginAll: margin * PdfPageFormat.mm,
     );
     final now = DateTime.now();
     final document = pw.Document(
-      title: 'Prueba de impresora',
+      title: 'Calibración de impresora',
       producer: 'Control de Alquileres',
     );
     document.addPage(
@@ -335,35 +373,113 @@ class ReceiptDocumentService {
           children: [
             pw.Center(
               child: pw.Text(
-                'PRUEBA DE IMPRESORA',
+                'CALIBRACIÓN DE IMPRESORA',
                 style: pw.TextStyle(font: bold, fontSize: 9),
               ),
             ),
+            pw.Center(
+              child: pw.Text(
+                model.trim().isEmpty ? 'Impresora térmica' : model.trim(),
+                style: pw.TextStyle(font: font, fontSize: 7),
+              ),
+            ),
+            pw.Center(
+              child: pw.Text(
+                '${formatDate(now)} '
+                '${now.hour.toString().padLeft(2, '0')}:'
+                '${now.minute.toString().padLeft(2, '0')}',
+                style: pw.TextStyle(font: font, fontSize: 6.5),
+              ),
+            ),
+            pw.SizedBox(height: 3),
+            // Marco: si falta algún lado, el área imprimible es menor.
+            pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(width: 1, color: PdfColors.black),
+              ),
+              padding: const pw.EdgeInsets.all(2),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  pw.Text(
+                    'IZQUIERDA',
+                    style: pw.TextStyle(font: font, fontSize: 7),
+                  ),
+                  pw.Center(
+                    child: pw.Text(
+                      'CENTRO',
+                      style: pw.TextStyle(font: font, fontSize: 7),
+                    ),
+                  ),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'DERECHA',
+                      style: pw.TextStyle(font: font, fontSize: 7),
+                    ),
+                  ),
+                  pw.Text(
+                    '-' * p.columns,
+                    style: pw.TextStyle(font: font, fontSize: 6),
+                  ),
+                  pw.Text(
+                    'Acentos: áéíóú ÁÉÍÓÚ ñÑ üÜ ¿¡',
+                    style: pw.TextStyle(font: font, fontSize: 7),
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Normal',
+                        style: pw.TextStyle(font: font, fontSize: 7),
+                      ),
+                      pw.Text(
+                        'RD\$ 8,500.00',
+                        style: pw.TextStyle(font: font, fontSize: 7),
+                      ),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Doble',
+                        style: pw.TextStyle(
+                          font: bold,
+                          fontSize: 11,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        'RD\$ 9,750',
+                        style: pw.TextStyle(
+                          font: bold,
+                          fontSize: 11,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'Papel: ${p.paperWidthMm} mm · '
+              'ancho útil: ${p.printableWidthMm.toStringAsFixed(1)} mm '
+              '(${p.effectivePrintableDots} puntos)',
+              style: pw.TextStyle(font: font, fontSize: 6.5),
+            ),
+            pw.Text(
+              'Columnas: ${p.columns} · Calibrado: '
+              '${p.isCalibrated ? 'sí' : 'no (valor conservador)'}',
+              style: pw.TextStyle(font: font, fontSize: 6.5),
+            ),
             pw.SizedBox(height: 2),
             pw.Text(
-              'Papel: $widthMm mm · margen ${margin.toStringAsFixed(1)} mm',
-              style: pw.TextStyle(font: font, fontSize: 7),
-            ),
-            pw.Text(
-              'Fecha: ${formatDate(now)} '
-              '${now.hour.toString().padLeft(2, '0')}:'
-              '${now.minute.toString().padLeft(2, '0')}',
-              style: pw.TextStyle(font: font, fontSize: 7),
-            ),
-            pw.SizedBox(height: 3),
-            pw.Text(
-              'Acentos: áéíóú ÁÉÍÓÚ ñÑ üÜ ¿¡',
-              style: pw.TextStyle(font: font, fontSize: 7),
-            ),
-            pw.Text(
-              'Montos: ${formatMoney(150000)} · ${formatMoney(875)}',
-              style: pw.TextStyle(font: font, fontSize: 7),
-            ),
-            pw.SizedBox(height: 3),
-            pw.Text(
-              'Si esta hoja sale completa y con los acentos legibles, el PDF '
-              'está bien configurado para 80 mm.',
-              style: pw.TextStyle(font: font, fontSize: 6.5),
+              'Si el marco no sale completo, reduzca el ancho útil en '
+              'Ajustes (Avanzado) hasta que entre entero.',
+              style: pw.TextStyle(font: font, fontSize: 6.2),
             ),
           ],
         ),
@@ -371,9 +487,6 @@ class ReceiptDocumentService {
     );
     return document.save();
   }
-
-  String pathFor(ReceiptRecord record) =>
-      p.join(paths.receiptsDir, fileNameFor(record));
 
   /// Asegura que el PDF exista y esté sano. Idempotente.
   Future<DocumentResult> ensure(
@@ -393,6 +506,7 @@ class ReceiptDocumentService {
         record,
         widthMm: currentWidthMm(),
         marginMm: currentMarginMm,
+        profile: currentProfile,
       );
       if (bytes.length < 700) {
         throw StateError('El PDF generado está vacío.');

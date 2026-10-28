@@ -9,6 +9,7 @@ import 'package:control_alquileres/src/data/finance_repository.dart';
 import 'package:control_alquileres/src/data/models.dart';
 import 'package:control_alquileres/src/data/portfolio_repository.dart';
 import 'package:control_alquileres/src/data/settings_repository.dart';
+import 'package:control_alquileres/src/services/printer_profile.dart';
 import 'package:control_alquileres/src/services/receipt_document_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -127,6 +128,51 @@ void main() {
   test('la referencia de la transferencia llega al recibo', () async {
     final record = finance.receipt(seedPayment(reference: 'TRF-ABCDE'))!;
     expect(record.snapshot['reference'], 'TRF-ABCDE');
+  });
+
+  test(
+    'un perfil angosto obliga a un margen mayor (el texto no se recorta)',
+    () async {
+      final record = finance.receipt(seedPayment())!;
+      double heightOf(Uint8List bytes) {
+        final match = RegExp(
+          r'/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([0-9.]+)\s+([0-9.]+)\s*\]',
+        ).firstMatch(latin1Of(bytes));
+        return double.parse(match!.group(2)!);
+      }
+
+      final wide = await ReceiptDocumentService.buildPdf(
+        record,
+        profile: const PrinterProfile(printableDots: 576),
+      );
+      final narrow = await ReceiptDocumentService.buildPdf(
+        record,
+        profile: const PrinterProfile(printableDots: 448), // 56 mm útiles
+      );
+
+      // Mismo contenido, área más angosta: el ticket crece en alto, no se corta.
+      expect(heightOf(narrow), greaterThan(heightOf(wide)));
+      // Y el ancho de página sigue siendo 80 mm exactos.
+      final match = RegExp(
+        r'/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([0-9.]+)',
+      ).firstMatch(latin1Of(narrow));
+      expect(double.parse(match!.group(1)!), closeTo(_pt(80), 1.0));
+    },
+  );
+
+  test('el ticket de calibración se genera con el perfil actual', () async {
+    final service = ReceiptDocumentService(
+      finance: finance,
+      paths: paths,
+      currentWidthMm: () => 80,
+      currentProfile: () => const PrinterProfile(printableDots: 576),
+    );
+    final bytes = await service.buildCalibrationDocument(model: '2C-P80-C');
+    expect(bytes.length, greaterThan(700));
+    final match = RegExp(
+      r'/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([0-9.]+)',
+    ).firstMatch(latin1Of(bytes));
+    expect(double.parse(match!.group(1)!), closeTo(_pt(80), 1.0));
   });
 
   test('ensure escribe el PDF una vez y no lo reescribe', () async {

@@ -103,7 +103,7 @@ String _decodeCp850(Uint8List bytes) {
 
 void main() {
   group('ESC/POS', () {
-    test('inicia, selecciona CP850, imprime el monto y corta el papel', () {
+    test('inicia, selecciona CP850, imprime el monto y no corta el papel', () {
       final bytes = EscPosReceipt.build(_record());
       expect(bytes.sublist(0, 2), [0x1B, 0x40]);
       expect(bytes.sublist(2, 5), [0x1B, 0x74, 0x02]);
@@ -112,8 +112,13 @@ void main() {
       expect(text, contains('A-04'));
       expect(text, contains('REC-000007'));
       expect(text, contains('RD\$ 8,500'));
-      // Avance + corte completo al final.
-      expect(bytes.sublist(bytes.length - 4), [0x1D, 0x56, 0x42, 0x00]);
+      // La 2C-P80-C se rasga a mano: se avanza papel y NO se envía GS V.
+      expect(bytes.sublist(bytes.length - 3), [0x1B, 0x64, 0x04]);
+      var cut = false;
+      for (var i = 0; i + 1 < bytes.length; i++) {
+        if (bytes[i] == 0x1D && bytes[i + 1] == 0x56) cut = true;
+      }
+      expect(cut, isFalse);
     });
 
     test('los acentos viajan en CP850 y no como mojibake', () {
@@ -134,8 +139,10 @@ void main() {
 
     test('la cédula sale enmascarada también en el papel térmico', () {
       final text = _decodeCp850(EscPosReceipt.build(_record()));
-      expect(text, contains('001-•••••••-78'));
+      expect(text, contains('001-XXXXXXX-78'));
       expect(text, isNot(contains('1234567')));
+      // En papel no se usa el punto volcado (0x07 = BEL en muchas impresoras).
+      expect(EscPosReceipt.build(_record()).contains(0x07), isFalse);
     });
 
     test('incluye la referencia de la transferencia y omite la vacía', () {
@@ -208,6 +215,11 @@ HKEY_LOCAL_MACHINE\HARDWARE\DEVICEMAP\SERIALCOMM
       expect(maskCedula(''), '');
       expect(maskCedula('12345'), '••••45');
       expect(maskCedula('7'), '••••7');
+    });
+
+    test('en papel usa X en lugar del punto volcado', () {
+      expect(maskCedula('00112345678', hide: 'X'), '001-XXXXXXX-78');
+      expect(maskCedula('12345', hide: 'X'), 'XXXX45');
     });
   });
 }

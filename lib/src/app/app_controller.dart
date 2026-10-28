@@ -13,6 +13,7 @@ import '../data/models.dart';
 import '../data/portfolio_repository.dart';
 import '../data/settings_repository.dart';
 import '../services/print_service.dart';
+import '../services/printer_profile.dart';
 import '../services/receipt_document_service.dart';
 
 enum AppSection {
@@ -96,6 +97,7 @@ class AppController extends ChangeNotifier {
       paths: paths,
       currentWidthMm: () => owner.receiptWidthMm,
       currentMarginMm: () => owner.receiptMarginMm,
+      currentProfile: () => owner.printerProfile,
     );
     printerService = ReceiptPrintService(
       documents: documents,
@@ -520,9 +522,13 @@ class AppController extends ChangeNotifier {
   /// Lista combinada de impresoras (colas de Windows y puertos serie).
   Future<List<PrinterRef>> listPrinters() => printerService.printers();
 
-  /// Hoja de prueba con la configuración indicada (sin guardarla).
-  Future<PrintResult> printTestPage(OwnerSettings value) =>
-      printerService.printTestPage(value);
+  /// Busca la impresora configurada (mensaje en español para la dueña).
+  Future<PrinterDetection> detectPrinter([OwnerSettings? value]) =>
+      printerService.detect(value ?? owner);
+
+  /// Ticket de calibración con la configuración indicada (sin guardarla).
+  Future<PrintResult> printCalibration(OwnerSettings value) =>
+      printerService.printCalibration(value);
 
   /// Genera (si hace falta) y abre el PDF con el visor de Windows.
   Future<String?> openReceipt(int receiptId) async {
