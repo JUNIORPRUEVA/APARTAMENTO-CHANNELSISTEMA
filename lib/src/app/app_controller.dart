@@ -389,12 +389,16 @@ class AppController extends ChangeNotifier {
         ready = document.ok;
         if (printAfterSave) {
           if (ready) {
-            final result = await printerService.printReceipt(
+            final attempt = await printerService.printReceiptAuto(
               receipt,
               settings: owner,
             );
-            printed = result.ok;
-            if (!result.ok) printMessage = result.message;
+            printed = attempt.ok;
+            if (!attempt.ok) {
+              printMessage = attempt.result.message;
+            } else {
+              _rememberPrinter(attempt);
+            }
           } else {
             printMessage =
                 'Cobro guardado, pero el recibo no se pudo generar. '
@@ -514,9 +518,40 @@ class AppController extends ChangeNotifier {
     if (record == null) {
       return const PrintResult(ok: false, message: 'El recibo ya no existe.');
     }
-    final result = await printerService.printReceipt(record, settings: owner);
+    final attempt = await printerService.printReceiptAuto(
+      record,
+      settings: owner,
+    );
+    if (attempt.ok) _rememberPrinter(attempt);
     reload();
-    return result;
+    return attempt.result;
+  }
+
+  /// Guarda en silencio la impresora que acaba de funcionar, para que el
+  /// cliente no tenga que configurar nada ni elegir puertos.
+  void _rememberPrinter(PrintAttempt attempt) {
+    final endpoint = attempt.endpoint;
+    final kind = attempt.kind;
+    if (endpoint == null || kind == null) return;
+    final transport = kind == PrinterKind.serialCom
+        ? PrinterTransport.serial
+        : PrinterTransport.windows;
+    if (owner.printerTarget == endpoint &&
+        owner.printerTransport == transport) {
+      return;
+    }
+    final updated = owner.copyWith(
+      printerTransport: transport,
+      printerTarget: endpoint,
+      printerName: attempt.label.isEmpty ? endpoint : attempt.label,
+    );
+    try {
+      settings.save(updated);
+      owner = settings.load();
+      notifyListeners();
+    } catch (error) {
+      database.logEvent('impresora_no_guardada', error.toString());
+    }
   }
 
   /// Lista combinada de impresoras (colas de Windows y puertos serie).
@@ -529,6 +564,25 @@ class AppController extends ChangeNotifier {
   /// Ticket de calibración con la configuración indicada (sin guardarla).
   Future<PrintResult> printCalibration(OwnerSettings value) =>
       printerService.printCalibration(value);
+
+  /// Ticket de prueba automático: prueba sola las impresoras y devuelve la que
+  /// respondió (para poder guardarla sin que el cliente elija nada).
+  Future<PrintAttempt> printCalibrationAuto(OwnerSettings value) async {
+    final attempt = await printerService.printCalibrationAuto(value);
+    if (attempt.ok) {
+      final saved = saveOwner(
+        value.copyWith(
+          printerTransport: attempt.kind == PrinterKind.serialCom
+              ? PrinterTransport.serial
+              : PrinterTransport.windows,
+          printerTarget: attempt.endpoint,
+          printerName: attempt.label.isEmpty ? attempt.endpoint : attempt.label,
+        ),
+      );
+      if (saved != null) database.logEvent('impresora_no_guardada', saved);
+    }
+    return attempt;
+  }
 
   /// Genera (si hace falta) y abre el PDF con el visor de Windows.
   Future<String?> openReceipt(int receiptId) async {

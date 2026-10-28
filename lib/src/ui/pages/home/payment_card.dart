@@ -5,12 +5,15 @@ import '../../../core/formatters.dart';
 import '../../../core/notice_center.dart';
 import '../../../data/finance_models.dart';
 import '../../../theme/app_colors.dart';
+import '../../widgets/app_icon.dart';
 import '../../widgets/common.dart';
 
 /// Formulario de cobro del diseño aprobado, ahora operativo.
 ///
-/// El botón guarda el pago (transacción atómica) y, si se pide, imprime el
-/// recibo después. La impresión nunca revierte el cobro.
+/// Un solo botón: **Cobrar e imprimir** guarda el pago (transacción atómica) y
+/// manda el ticket a la impresora automáticamente. Si el cliente no quiere
+/// ticket, **No imprimir ticket** guarda igual sin imprimir. La impresión
+/// nunca revierte el cobro.
 class PaymentCard extends StatefulWidget {
   const PaymentCard({super.key, this.bounded = true});
 
@@ -286,16 +289,16 @@ class _PaymentCardState extends State<PaymentCard> {
             runSpacing: 8,
             children: [
               OutlineButton(
-                label: 'Guardar (sin imprimir)',
-                icon: Icons.save_outlined,
+                label: 'No imprimir ticket',
+                icon: Icons.print_disabled_outlined,
                 height: 40,
                 onPressed: _busy || period == null
                     ? null
                     : () => _submit(print: false),
               ),
               PrimaryButton(
-                label: _busy ? 'Guardando…' : 'Guardar e imprimir recibo',
-                icon: Icons.print_outlined,
+                label: _busy ? 'Guardando…' : 'Cobrar e imprimir',
+                appIcon: AppIcon.print,
                 height: 40,
                 onPressed: _busy || period == null
                     ? null

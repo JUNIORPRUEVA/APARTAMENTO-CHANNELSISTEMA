@@ -26,6 +26,7 @@ class PrinterRef {
     this.kind = PrinterKind.windowsQueue,
     this.target,
     this.detail = '',
+    this.isAvailable = true,
   });
 
   /// Texto que ve el usuario.
@@ -39,6 +40,9 @@ class PrinterRef {
   /// Aclaración breve (por ejemplo "Bluetooth probable").
   final String detail;
 
+  /// `false` cuando Windows la reporta desconectada (se ignora al imprimir).
+  final bool isAvailable;
+
   String get endpoint => target ?? name;
 }
 
@@ -49,6 +53,27 @@ class PrintResult {
   final String message;
 
   static const PrintResult success = PrintResult(ok: true);
+}
+
+/// Resultado de un intento **automático**: incluye qué impresora respondió,
+/// para que la aplicación la recuerde y no vuelva a preguntar nunca.
+class PrintAttempt {
+  const PrintAttempt({
+    required this.result,
+    this.endpoint,
+    this.kind,
+    this.label = '',
+  });
+
+  final PrintResult result;
+
+  /// Cola de Windows o `COM5` que aceptó el trabajo.
+  final String? endpoint;
+  final PrinterKind? kind;
+  final String label;
+
+  bool get ok => result.ok;
+  bool get hasTarget => endpoint != null && kind != null;
 }
 
 /// Punto de salida hacia Windows. Se abstrae para poder probar el flujo
@@ -82,6 +107,7 @@ class WindowsPrintGateway implements PrintGateway {
             isDefault: printer.isDefault,
             kind: PrinterKind.windowsQueue,
             target: printer.name,
+            isAvailable: printer.isAvailable,
           ),
       ];
     } catch (_) {
@@ -476,6 +502,257 @@ class ReceiptPrintService {
       );
     }
 
+    final bytes = await documents.buildCalibrationDocument(
+      profile: profile,
+      model: model,
+    );
+    return gateway.print(
+      pdfBytes: bytes,
+      printerName: route.endpoint,
+      jobName: 'Calibración de impresora',
+    );
+  }
+
+  // ------------------------------------------------ automático (recomendado)
+  //
+  // El cliente no elige puertos ni ve listas de dispositivos: la aplicación
+  // ordena las impresoras candidatas, prueba en silencio y recuerda la que
+  // funcionó. Si la impresora configurada falla (apagada, desemparejada), se
+  // prueba la siguiente sin molestar a nadie.
+
+  /// Colas de Windows que no son impresoras de tickets.
+  static final RegExp _virtualQueue = RegExp(
+    r'pdf|xps|onenote|fax|microsoft print|documento',
+    caseSensitive: false,
+  );
+
+  /// Nombres que suenan a impresora térmica de tickets.
+  static final RegExp _thermalHint = RegExp(
+    r'pos|term|thermal|sewoo|seewo|rongta|xprinter|bixolon|zjiang|2c-|tm-?t|gp-?58|gp-?80|80mm|58mm',
+    caseSensitive: false,
+  );
+
+  /// Impresoras que se probarán solas, en orden: la que ya funcionó, las
+  /// térmicas instaladas en Windows y, al final, los puertos Bluetooth (SPP).
+  Future<List<PrinterDetection>> autoCandidates(OwnerSettings settings) async {
+    final ordered = <PrinterDetection>[];
+    final seen = <String>{};
+
+    void add(PrinterDetection detection) {
+      final endpoint = detection.endpoint;
+      if (!detection.found || endpoint == null || endpoint.isEmpty) return;
+      if (!seen.add('${detection.kind?.name}:$endpoint')) return;
+      ordered.add(detection);
+    }
+
+    add(await detect(settings));
+    for (final queue in await _thermalQueues()) {
+      add(queue);
+    }
+    for (final port in await _serialPorts()) {
+      add(port);
+    }
+    return ordered;
+  }
+
+  /// Colas de Windows que parecen impresora de tickets.
+  Future<List<PrinterDetection>> _thermalQueues() async {
+    final found = <PrinterDetection>[];
+    final List<PrinterRef> queues;
+    try {
+      queues = await gateway.listPrinters();
+    } catch (_) {
+      return found;
+    }
+    for (final printer in queues) {
+      final name = printer.endpoint;
+      if (!printer.isAvailable) continue;
+      if (_virtualQueue.hasMatch(name)) continue;
+      if (!_thermalHint.hasMatch(name)) continue;
+      found.add(
+        PrinterDetection(
+          found: true,
+          kind: PrinterKind.windowsQueue,
+          endpoint: name,
+          label: printer.name,
+          message: 'Impresora lista: ${printer.name}.',
+        ),
+      );
+    }
+    return found;
+  }
+
+  /// Puertos serie que pueden enviar datos (impresora Bluetooth SPP).
+  ///
+  /// Con [bluetoothOnly] se descartan los puertos de la placa (`COM1`): nunca
+  /// se manda un ticket a un puerto que no sea la impresora.
+  Future<List<PrinterDetection>> _serialPorts({
+    bool bluetoothOnly = false,
+  }) async {
+    final found = <PrinterDetection>[];
+    final List<ComPort> ports;
+    try {
+      ports = await serialGateway.listPorts();
+    } catch (_) {
+      return found;
+    }
+    // Orden estable: primero los `BthModem0` (el puerto que Windows crea al
+    // emparejar una impresora) y luego el resto, por nombre.
+    final ordered = [...ports]
+      ..sort((a, b) {
+        final byPath = a.devicePath.compareTo(b.devicePath);
+        return byPath != 0 ? byPath : a.name.compareTo(b.name);
+      });
+    for (final port in ordered) {
+      if (!port.canSend) continue;
+      if (bluetoothOnly && !port.likelyBluetooth) continue;
+      found.add(
+        PrinterDetection(
+          found: true,
+          kind: PrinterKind.serialCom,
+          endpoint: port.name,
+          label: port.label,
+          message: 'Impresora lista: ${port.label}.',
+        ),
+      );
+    }
+    return found;
+  }
+
+  /// Imprime el recibo probando sola las impresoras disponibles.
+  Future<PrintAttempt> printReceiptAuto(
+    ReceiptRecord record, {
+    required OwnerSettings settings,
+  }) async {
+    final document = await documents.ensure(record);
+    final path = document.path;
+    if (!document.ok || path == null) {
+      return const PrintAttempt(
+        result: PrintResult(
+          ok: false,
+          message:
+              'El cobro está guardado, pero no se pudo preparar el recibo. '
+              'Podrá imprimirlo después desde el historial.',
+        ),
+      );
+    }
+    return _tryAll(
+      settings: settings,
+      job: (route) => _sendReceipt(record, route, settings, path),
+    );
+  }
+
+  /// Ticket de prueba de Ajustes, también automático.
+  Future<PrintAttempt> printCalibrationAuto(
+    OwnerSettings settings, {
+    String model = '2C-P80-C',
+  }) {
+    return _tryAll(
+      settings: settings,
+      job: (route) => _sendCalibration(settings, route, model),
+    );
+  }
+
+  /// Prueba los destinos **de uno en uno**: primero la impresora ya
+  /// configurada (el caso normal, sin enumerar nada), después las térmicas de
+  /// Windows y por último los puertos Bluetooth. Se detiene en cuanto una
+  /// responde, así el cliente nunca espera ni ve listas de dispositivos.
+  Future<PrintAttempt> _tryAll({
+    required OwnerSettings settings,
+    required Future<PrintResult> Function(PrinterDetection route) job,
+  }) async {
+    final tried = <String>{};
+
+    Future<PrintAttempt?> attempt(PrinterDetection route) async {
+      final endpoint = route.endpoint;
+      if (!route.found || endpoint == null || endpoint.isEmpty) return null;
+      if (!tried.add('${route.kind?.name}:$endpoint')) return null;
+      final result = await job(route);
+      if (!result.ok) return null;
+      return PrintAttempt(
+        result: const PrintResult(
+          ok: true,
+          message: 'Ticket enviado a la impresora.',
+        ),
+        endpoint: endpoint,
+        kind: route.kind,
+        label: route.label,
+      );
+    }
+
+    final first = await attempt(await detect(settings));
+    if (first != null) return first;
+
+    for (final queue in await _thermalQueues()) {
+      final done = await attempt(queue);
+      if (done != null) return done;
+    }
+
+    // Los puertos serie solo se prueban si el cliente usa Bluetooth o si aún no
+    // hay impresora configurada: así una cola de Windows que falla nunca manda
+    // el ticket a un puerto cualquiera. Se prueba un solo puerto Bluetooth.
+    final configured = (settings.printerTarget ?? '').trim().isNotEmpty;
+    final allowSerial =
+        !configured || settings.printerTransport == PrinterTransport.serial;
+    if (allowSerial) {
+      final ports = await _serialPorts(bluetoothOnly: true);
+      for (final port in ports.take(1)) {
+        final done = await attempt(port);
+        if (done != null) return done;
+      }
+    }
+
+    return const PrintAttempt(
+      result: PrintResult(
+        ok: false,
+        message:
+            'No se pudo imprimir. El pago está guardado: encienda la impresora '
+            'y reimprima el ticket desde el historial.',
+      ),
+    );
+  }
+
+  Future<PrintResult> _sendReceipt(
+    ReceiptRecord record,
+    PrinterDetection route,
+    OwnerSettings settings,
+    String pdfPath,
+  ) async {
+    if (route.kind == PrinterKind.serialCom) {
+      return serialGateway.printReceipt(
+        record,
+        port: route.endpoint!,
+        profile: settings.printerProfile,
+      );
+    }
+    try {
+      final bytes = await File(pdfPath).readAsBytes();
+      return await gateway.print(
+        pdfBytes: bytes,
+        printerName: route.endpoint,
+        jobName: 'Recibo ${record.label}',
+      );
+    } catch (_) {
+      return const PrintResult(
+        ok: false,
+        message: 'No se pudo enviar el recibo a esa impresora.',
+      );
+    }
+  }
+
+  Future<PrintResult> _sendCalibration(
+    OwnerSettings settings,
+    PrinterDetection route,
+    String model,
+  ) async {
+    final profile = settings.printerProfile;
+    if (route.kind == PrinterKind.serialCom) {
+      return serialGateway.printCalibration(
+        port: route.endpoint!,
+        profile: profile,
+        model: model,
+      );
+    }
     final bytes = await documents.buildCalibrationDocument(
       profile: profile,
       model: model,

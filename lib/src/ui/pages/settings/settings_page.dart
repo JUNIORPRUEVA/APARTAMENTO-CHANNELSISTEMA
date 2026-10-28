@@ -9,6 +9,7 @@ import '../../../services/backup_service.dart';
 import '../../../services/print_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
+import '../../widgets/app_icon.dart';
 import '../../widgets/common.dart';
 import '../../dialogs/dialogs.dart';
 
@@ -218,13 +219,14 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     final controller = AppScope.read(context);
     setState(() => _printing = true);
     try {
-      final result = await controller.printCalibration(_draftSettings());
+      // Automático: prueba las impresoras disponibles y guarda la que responda.
+      final attempt = await controller.printCalibrationAuto(_draftSettings());
       if (!mounted) return;
       reportOutcome(
         context,
-        result.ok ? null : result.message,
-        successMessage: result.ok
-            ? 'Ticket de calibración enviado a la impresora.'
+        attempt.ok ? null : attempt.result.message,
+        successMessage: attempt.ok
+            ? 'Ticket de prueba enviado a la impresora.'
             : '',
       );
       await _refreshStatus();
@@ -621,112 +623,20 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                     Text('Impresora', style: appText.sectionTitle),
                     const SizedBox(height: 4),
                     const Text(
-                      'La aplicación busca la impresora sola. Si no aparece, '
-                      'empareje la 2C-P80-C en Configuración › Bluetooth y '
-                      'otros dispositivos y pulse Actualizar.',
+                      'La impresora se configura sola. Pulse «Probar impresora» '
+                      'una vez: si sale el ticket, queda lista y no habrá que '
+                      'elegir puertos ni dispositivos nunca más.',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: AppColors.textMuted,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
-                      width: 250,
-                      child: LabeledField(
-                        label: 'Conexión',
-                        child: DropdownButtonFormField<PrinterTransport>(
-                          initialValue: _transport,
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(
-                              value: PrinterTransport.auto,
-                              child: Text('Automático'),
-                            ),
-                            DropdownMenuItem(
-                              value: PrinterTransport.windows,
-                              child: Text('Windows'),
-                            ),
-                            DropdownMenuItem(
-                              value: PrinterTransport.serial,
-                              child: Text('Bluetooth (COM)'),
-                            ),
-                          ],
-                          onChanged: (value) => setState(() {
-                            _transport = value ?? PrinterTransport.auto;
-                          }),
-                          decoration: const InputDecoration(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _loadingPrinters
-                              ? const Text(
-                                  'Buscando impresora...',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    color: AppColors.textMuted,
-                                  ),
-                                )
-                              : DropdownButtonFormField<String>(
-                                  // Si la impresora guardada ya no aparece
-                                  // (apagada, desemparejada), se muestra igual
-                                  // para no romper el desplegable ni perder la
-                                  // configuración.
-                                  initialValue: _dropdownValue,
-                                  isExpanded: true,
-                                  items: [
-                                    if (_missingTarget != null)
-                                      DropdownMenuItem(
-                                        value: _selectedTarget,
-                                        child: Text(
-                                          '${_missingTarget!} · no disponible',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    for (final printer in _printers)
-                                      DropdownMenuItem(
-                                        value:
-                                            '${printer.kind == PrinterKind.serialCom ? 'serie' : 'cola'}:'
-                                            '${printer.endpoint}',
-                                        child: Text(
-                                          printer.detail.isEmpty
-                                              ? printer.name
-                                              : '${printer.name} · ${printer.detail}',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                  ],
-                                  onChanged: (value) => setState(() {
-                                    _selectedTarget = value;
-                                    final draft = _draftTarget;
-                                    _transport = draft.transport;
-                                  }),
-                                  decoration: const InputDecoration(
-                                    hintText: 'Sin impresora configurada',
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 10),
-                        OutlineButton(
-                          label: 'Actualizar',
-                          icon: Icons.refresh_rounded,
-                          dense: true,
-                          onPressed: () {
-                            setState(() => _loadingPrinters = true);
-                            _loadPrinters();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        PrimaryButton(
-                          label: 'Probar',
-                          icon: Icons.print_outlined,
-                          height: 36,
-                          onPressed: _printing ? null : _testPrint,
-                        ),
-                      ],
+                    PrimaryButton(
+                      label: _printing ? 'Probando…' : 'Probar impresora',
+                      appIcon: AppIcon.print,
+                      height: 36,
+                      onPressed: _printing ? null : _testPrint,
                     ),
                     const SizedBox(height: 8),
                     // Estado real de la conexión (sin tecnicismos ni trazas).
@@ -756,6 +666,117 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 2),
+                    // Solo para casos raros: elegir la impresora a mano.
+                    Theme(
+                      data: Theme.of(
+                        context,
+                      ).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 6),
+                        title: const Text(
+                          'Elegir impresora a mano (solo si hace falta)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        children: [
+                          SizedBox(
+                            width: 250,
+                            child: LabeledField(
+                              label: 'Conexión',
+                              child: DropdownButtonFormField<PrinterTransport>(
+                                initialValue: _transport,
+                                isExpanded: true,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: PrinterTransport.auto,
+                                    child: Text('Automático'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: PrinterTransport.windows,
+                                    child: Text('Windows'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: PrinterTransport.serial,
+                                    child: Text('Bluetooth (COM)'),
+                                  ),
+                                ],
+                                onChanged: (value) => setState(() {
+                                  _transport = value ?? PrinterTransport.auto;
+                                }),
+                                decoration: const InputDecoration(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _loadingPrinters
+                                    ? const Text(
+                                        'Buscando impresora...',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      )
+                                    : DropdownButtonFormField<String>(
+                                        // Si la impresora guardada ya no
+                                        // aparece (apagada, desemparejada), se
+                                        // muestra igual para no perder la
+                                        // configuración.
+                                        initialValue: _dropdownValue,
+                                        isExpanded: true,
+                                        items: [
+                                          if (_missingTarget != null)
+                                            DropdownMenuItem(
+                                              value: _selectedTarget,
+                                              child: Text(
+                                                '${_missingTarget!} · no disponible',
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          for (final printer in _printers)
+                                            DropdownMenuItem(
+                                              value:
+                                                  '${printer.kind == PrinterKind.serialCom ? 'serie' : 'cola'}:'
+                                                  '${printer.endpoint}',
+                                              child: Text(
+                                                printer.detail.isEmpty
+                                                    ? printer.name
+                                                    : '${printer.name} · ${printer.detail}',
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                        onChanged: (value) => setState(() {
+                                          _selectedTarget = value;
+                                          final draft = _draftTarget;
+                                          _transport = draft.transport;
+                                        }),
+                                        decoration: const InputDecoration(
+                                          hintText: 'Sin impresora configurada',
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 10),
+                              OutlineButton(
+                                label: 'Actualizar',
+                                icon: Icons.refresh_rounded,
+                                dense: true,
+                                onPressed: () {
+                                  setState(() => _loadingPrinters = true);
+                                  _loadPrinters();
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Theme(

@@ -71,7 +71,7 @@ void main() {
       expect(find.text('Mis Apartamentos'), findsOneWidget);
       // Inicio es el flujo del día: lista + ficha y un solo botón Cobrar por
       // fila. El formulario de cobro NO se duplica aquí.
-      expect(find.text('Guardar e imprimir recibo'), findsNothing);
+      expect(find.text('Cobrar e imprimir'), findsNothing);
       expect(find.text('Pagos realizados - Apartamento 101'), findsNothing);
     });
   }
@@ -154,7 +154,7 @@ void main() {
     // El formulario vive en Cobros: se navega como lo haría la dueña.
     controller.startPaymentFor(controller.selectedApartmentId!);
     await tester.pumpAndSettle();
-    expect(find.text('Guardar e imprimir recibo'), findsWidgets);
+    expect(find.text('Cobrar e imprimir'), findsWidgets);
 
     final amountField = find.byWidgetPredicate(
       (widget) =>
@@ -164,7 +164,7 @@ void main() {
     await tester.enterText(amountField, '99999');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Guardar (sin imprimir)').first);
+    await tester.tap(find.text('No imprimir ticket').first);
     await tester.pumpAndSettle();
 
     expect(

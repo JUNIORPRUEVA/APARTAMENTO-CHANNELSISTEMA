@@ -55,7 +55,9 @@ flutter build windows --release # build\windows\x64\runner\Release\
    monto recibido y lo que restará**. El período se mueve con `‹ ›` (incluye
    meses futuros para pago adelantado; el atraso más antiguo se propone
    primero).
-3. **Guardar (sin imprimir)** o **Guardar e imprimir recibo**.
+3. **Cobrar e imprimir** (un solo botón: guarda y manda el ticket solo) o
+   **No imprimir ticket** (guarda sin imprimir). No hay pasos intermedios: el
+   cobro queda guardado en el acto.
 4. El histórico del apartamento permite **abrir el PDF**, **reimprimir** o
    **anular** con motivo (queda nota de anulación y se restaura el saldo).
 5. **Depósito** (pestaña Depósito): recibir, devolver o retener con documento
@@ -92,11 +94,29 @@ flutter build windows --release # build\windows\x64\runner\Release\
 
 ## Impresora (2C-P80-C de 80 mm)
 
-`Ajustes → Impresora` ofrece **tres modos de conexión**:
+**La impresora se configura una sola vez.** En `Ajustes → Impresora` hay un
+único botón, **Probar impresora**: la aplicación busca sola, imprime un ticket de
+prueba y **guarda la impresora que respondió**. El cliente no elige puertos ni
+ve listas de dispositivos (quedan plegadas en *Elegir impresora a mano*, solo
+para casos raros).
+
+Al cobrar, **Cobrar e imprimir** guarda el pago y manda el ticket en el mismo
+paso; **No imprimir ticket** guarda sin imprimir. Si la impresora falla, el
+cobro queda guardado igual y el ticket se reimprime desde el historial.
+
+Orden de búsqueda automática (sin intervención):
+
+1. La impresora que ya funcionó la última vez.
+2. Colas de Windows que parecen térmicas (`POS`, `80 mm`, `SEWOO`, `2C-`…),
+   ignorando las desconectadas y las virtuales (PDF, XPS, Fax).
+3. Un único puerto Bluetooth (SPP), empezando por el que Windows crea al
+   emparejar (`BthModem0`). Nunca se escribe en `COM1` ni en puertos entrantes.
+
+Los tres **modos de conexión** siguen existiendo en la sección manual:
 
 | Modo | Cuándo usarlo |
 |---|---|
-| **Automático** (por defecto) | La aplicación busca sola: si hay un único puerto serie Bluetooth lo usa; si no, avisa "No se encontró la impresora. Revise Bluetooth." |
+| **Automático** (por defecto) | La aplicación busca sola: la impresora ya usada, una térmica de Windows o el puerto Bluetooth. |
 | **Windows** | La impresora tiene driver del fabricante y cola en el sistema. Envía el PDF de 80 mm con `Printing.directPrintPdf` (sin diálogos). |
 | **Bluetooth (COM)** | Emparejada como *Bluetooth clásico (SPP)*; Windows crea un puerto `COM`. Se envía **ESC/POS nativo** por ese puerto, sin driver. |
 

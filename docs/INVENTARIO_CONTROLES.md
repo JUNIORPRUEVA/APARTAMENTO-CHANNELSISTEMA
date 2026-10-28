@@ -60,9 +60,9 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | Fecha de pago | FUNCIONA | Calendario en español |
 | Observación | FUNCIONA | Se imprime como "Obs." |
 | Resumen Vence / Debe / Recibido / Restará | FUNCIONA | Calculado en vivo |
-| **Guardar (sin imprimir)** | FUNCIONA | Atómico, idempotente |
-| **Guardar e imprimir recibo** | PARCIAL | Guarda siempre; la impresión depende de la impresora (ver §7) |
-| Doble clic rápido en Guardar | FUNCIONA | Un solo cobro (probado con dos envíos simultáneos) |
+| **Cobrar e imprimir** | FUNCIONA | Un solo botón: guarda el pago (atómico) y manda el ticket; la impresora se elige sola |
+| **No imprimir ticket** | FUNCIONA | Guarda el pago sin imprimir |
+| Doble clic rápido en Cobrar | FUNCIONA | Un solo cobro (probado con dos envíos simultáneos) |
 
 ## 4. Historial de pagos
 
@@ -104,10 +104,8 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | Datos del negocio (nombre, RNC/cédula, dirección, teléfono) | FUNCIONA | Se imprimen en cada recibo |
 | Prefijo del recibo | FUNCIONA | Cambia la serie de los recibos nuevos |
 | Ancho del papel 80 / 58 mm | FUNCIONA | El PDF sale exactamente de ese ancho (verificado en el MediaBox) |
-| **Conexión: Automático / Windows / Bluetooth (COM)** | FUNCIONA | Automático usa un único puerto Bluetooth; nunca elige al azar entre varios |
-| **Selector de impresora** (colas + puertos COM) | FUNCIONA | Nombres de Windows; los puertos *entrantes* se marcan como no utilizables |
-| **Actualizar** | FUNCIONA | Vuelve a consultar spooler, registro y nombres amigables |
-| **Probar** (ticket de calibración) | PARCIAL | Genera el ticket real (PDF o ESC/POS) marcado **PRUEBA · NO ES UN PAGO**; no toca numeración; **no verificado en hardware** |
+| **Probar impresora** (único botón) | FUNCIONA | Busca sola, imprime el ticket de prueba marcado **PRUEBA · NO ES UN PAGO** y guarda la impresora que respondió; no toca numeración |
+| **Elegir impresora a mano** (plegado) | FUNCIONA | Solo para casos raros: conexión, lista de colas/puertos y Actualizar |
 | Línea de estado ("Impresora lista: COM5") | FUNCIONA | Mensajes en español, sin trazas |
 | Avanzado → **ancho útil calibrado (puntos)** | FUNCIONA | 0 = automático (576 en 80 mm). Persistido y validado |
 | Avanzado → margen de contenido (puntos) | FUNCIONA | Reduce las columnas del ticket |
@@ -120,7 +118,8 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | Caso | Estado |
 |---|---|
 | Cola de Windows con driver del fabricante | PARCIAL: implementado y probado con mock; **no probado con hardware** |
-| Puerto serie Bluetooth SPP con ESC/POS | PARCIAL: implementado (FFI) y probado con transporte falso; **no probado con hardware** |
+| Puerto serie Bluetooth SPP con ESC/POS | FUNCIONA (probado): 2C-P80-C emparejada, ticket de calibración y recibos REC-000151/153 enviados por COM3 |
+| Elección automática entre varias impresoras/puertos | FUNCIONA (probado): ignora colas virtuales y desconectadas, no escribe en COM1 y recuerda la impresora que respondió |
 | Ancho de papel 80 mm / ancho imprimible distinto | FUNCIONA: perfil con 576 puntos conservadores y calibración manual |
 | Ticket demasiado ancho (texto cortado) | FUNCIONA: el margen se amplía solo; `Avanzado` permite reducirlo más |
 | Envío de corte (`GS V`) a impresora sin cortador | FUNCIONA: **no se envía nunca** (corte manual por defecto) |

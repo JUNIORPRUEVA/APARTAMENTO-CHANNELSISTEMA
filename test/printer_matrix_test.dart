@@ -400,4 +400,63 @@ void main() {
       expect(outgoing.label, contains('COM5'));
     });
   });
+
+  group('impresión automática (sin que el cliente elija nada)', () {
+    test('sin impresora configurada usa el único puerto Bluetooth', () async {
+      final attempt = await service.printReceiptAuto(
+        record,
+        settings: const OwnerSettings.empty(),
+      );
+      expect(attempt.ok, isTrue);
+      expect(attempt.endpoint, 'COM3');
+      expect(attempt.kind, PrinterKind.serialCom);
+      expect(serial.sent.map((s) => s.port), ['COM3']);
+    });
+
+    test('sin puertos serie elige la térmica de Windows sola', () async {
+      serial.ports = const [];
+      final attempt = await service.printReceiptAuto(
+        record,
+        settings: const OwnerSettings.empty(),
+      );
+      expect(attempt.ok, isTrue);
+      expect(attempt.endpoint, 'EPSON TM-T20');
+      expect(attempt.kind, PrinterKind.windowsQueue);
+      expect(windows.jobs, contains('EPSON TM-T20'));
+    });
+
+    test('si la guardada no responde, imprime en la correcta sola', () async {
+      serial.failure = Exception('El puerto no está disponible.');
+      final attempt = await service.printReceiptAuto(
+        record,
+        settings: serialSettings(),
+      );
+      expect(attempt.ok, isTrue);
+      expect(attempt.endpoint, 'EPSON TM-T20');
+      expect(attempt.result.message, contains('enviado'));
+    });
+
+    test('nunca escribe en el puerto de la placa (COM4)', () async {
+      windows.reject = true;
+      final attempt = await service.printReceiptAuto(
+        record,
+        settings: const OwnerSettings.empty(),
+      );
+      expect(attempt.ok, isTrue);
+      expect(attempt.endpoint, 'COM3');
+      expect(serial.sent.map((s) => s.port), ['COM3']);
+    });
+
+    test('si nada responde, avisa sin perder el cobro', () async {
+      windows.reject = true;
+      serial.failure = Exception('sin impresora');
+      final attempt = await service.printReceiptAuto(
+        record,
+        settings: serialSettings(),
+      );
+      expect(attempt.ok, isFalse);
+      expect(attempt.hasTarget, isFalse);
+      expect(attempt.result.message, contains('El pago está guardado'));
+    });
+  });
 }

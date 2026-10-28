@@ -109,6 +109,13 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Impresora'), findsOneWidget);
     // La selección guardada se conserva y se avisa que no está disponible.
+    // El selector manual vive ahora dentro de una sección plegada: la
+    // aplicación elige la impresora sola y no muestra listas al cliente.
+    final manual = find.text('Elegir impresora a mano (solo si hace falta)');
+    await tester.ensureVisible(manual);
+    await tester.pumpAndSettle();
+    await tester.tap(manual);
+    await tester.pumpAndSettle();
     expect(
       find.textContaining('no disponible'),
       findsOneWidget,

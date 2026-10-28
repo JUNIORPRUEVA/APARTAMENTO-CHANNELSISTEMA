@@ -86,7 +86,7 @@ void main() {
     final before = controller.selectedPeriod!.remainingCents;
 
     await tester.runAsync(() async {
-      await tester.tap(find.text('Guardar (sin imprimir)').first);
+      await tester.tap(find.text('No imprimir ticket').first);
       await Future<void>.delayed(const Duration(milliseconds: 600));
     });
     await tester.pumpAndSettle();
@@ -134,7 +134,7 @@ void main() {
   ) async {
     await pumpApp(tester);
     await tester.runAsync(() async {
-      await tester.tap(find.text('Guardar e imprimir recibo').first);
+      await tester.tap(find.text('Cobrar e imprimir').first);
       await Future<void>.delayed(const Duration(milliseconds: 600));
     });
     await tester.pumpAndSettle();
@@ -149,7 +149,7 @@ void main() {
     gateway.fail = true;
     await pumpApp(tester);
     await tester.runAsync(() async {
-      await tester.tap(find.text('Guardar e imprimir recibo').first);
+      await tester.tap(find.text('Cobrar e imprimir').first);
       await Future<void>.delayed(const Duration(milliseconds: 600));
     });
     await tester.pumpAndSettle();

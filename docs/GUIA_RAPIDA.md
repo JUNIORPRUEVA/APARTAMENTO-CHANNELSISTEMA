@@ -29,12 +29,20 @@ nombre:
    * **Método**: efectivo o transferencia. Si es transferencia, escriba la
      **Referencia** (número de operación) — es opcional.
    * **Fecha de pago**: la de hoy por defecto.
-3. Pulse **Guardar e imprimir recibo** (o **Guardar** si no quiere imprimir).
-4. El aviso dirá si el recibo se **envió a la impresora**. Eso significa
+3. Pulse **Cobrar e imprimir**: el cobro se guarda y el ticket sale solo.
+   Si no quiere ticket, pulse **No imprimir ticket** (se guarda igual).
+4. El aviso dirá si el ticket se **envió a la impresora**. Eso significa
    "enviado", no "impreso": revise el papel.
 
 > Si la impresora no responde, **el cobro ya quedó guardado**. Puede reimprimir
 > después desde el historial.
+
+## Configurar la impresora (una sola vez)
+
+**Configuración** (engranaje abajo a la izquierda) → **Impresora** →
+**Probar impresora**. La aplicación busca la impresora sola e imprime un ticket
+de prueba; si sale, **ya queda configurada para siempre**. No hay que elegir
+puertos ni dispositivos.
 
 ## Ver o reimprimir un recibo
 
@@ -70,22 +78,22 @@ conserva y se puede consultar con el filtro del historial.
 
 1. Encienda la impresora (batería cargada) y cargue el rollo de 80 mm.
 2. **Windows** → Configuración → Bluetooth y otros dispositivos → *Agregar
-   dispositivo* → *Bluetooth* → elija **2C-P80-C**. Windows crea un puerto
-   **saliente** tipo `COM5` (visible en *Administrador de dispositivos →
-   Puertos COM y LPT*).
+   dispositivo* → *Bluetooth* → elija **2C-P80-C**. Windows crea el puerto
+   saliente solo; **no hay que buscar ni elegir puertos**.
 3. Abra la aplicación → **Configuración** (engranaje abajo a la izquierda) →
-   sección **Impresora** → **Actualizar**.
-4. Elija el puerto que dice *Bluetooth* (por ejemplo
-   `COM5 · Standard Serial over Bluetooth link`). **No** elija uno que diga
-   *entrante*: ese no sirve para imprimir.
-5. Pulse **Probar** y revise el ticket de calibración:
+   sección **Impresora** → **Probar impresora**. La aplicación busca sola,
+   imprime el ticket de prueba y guarda la impresora que respondió.
+4. Revise el ticket de calibración:
    * El ticket trae un **marco** y una **regla de columnas**: si el marco sale
      completo, el ancho está bien.
    * Si el marco sale cortado por la derecha, abra **Avanzado**, baje
      *Ancho útil calibrado (puntos)* y repita. Regla: **mm impresos × 8 =
      puntos** (72 mm → 576; 64 mm → 512).
    * Si los acentos salen como símbolos raros, marque **Imprimir sin acentos**.
-6. Pulse **Guardar**. No hace falta repetir esto cada día.
+5. Pulse **Guardar**. No hace falta repetir esto cada día.
+
+> Si algún día hay que elegir a mano, la lista sigue en **Elegir impresora a
+> mano**, dentro de la misma sección.
 
 > Notas honestas:
 > * Si la impresora **no** crea un puerto COM (solo Bluetooth LE), esta versión

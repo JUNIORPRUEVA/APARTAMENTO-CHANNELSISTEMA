@@ -165,7 +165,7 @@ void main() {
       await pumpAt(tester, const Size(1366, 768));
       controller.startPaymentFor(controller.visibleApartments.first.id);
       await tester.pumpAndSettle();
-      expect(find.text('Guardar e imprimir recibo'), findsWidgets);
+      expect(find.text('Cobrar e imprimir'), findsWidgets);
 
       await tester.tap(find.text('Cambiar').first);
       await tester.pumpAndSettle();
@@ -212,8 +212,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         // Acciones esenciales alcanzables (aunque requieran scroll).
-        expect(find.text('Guardar (sin imprimir)'), findsWidgets);
-        expect(find.text('Guardar e imprimir recibo'), findsWidgets);
+        expect(find.text('No imprimir ticket'), findsWidgets);
+        expect(find.text('Cobrar e imprimir'), findsWidgets);
       });
     }
   });
