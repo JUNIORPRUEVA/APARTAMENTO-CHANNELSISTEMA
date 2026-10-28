@@ -193,8 +193,10 @@ docs/GUIA_RAPIDA.md           guía de una página para la dueña
   perder el historial.
 * **Marco nativo de Windows**: la barra de título, minimizar, maximizar, cerrar,
   arrastre y ajuste por DPI los dibuja el sistema operativo (`TitleBarStyle.normal`);
-  la aplicación no pinta botones falsos. Mínimo 960×540 (1366×768 al 125 % deja
-  ~1093×578).
+  la aplicación no pinta botones falsos. El marco se fuerza a **blanco**
+  (`DwmSetWindowAttribute`: sin modo oscuro, color de título blanco y texto
+  oscuro) para que combine con la interfaz aunque Windows esté en tema oscuro.
+  Mínimo 960×540 (1366×768 al 125 % deja ~1093×578).
 
 ### Comportamiento por tamaño
 
@@ -211,8 +213,9 @@ Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 
 
 ## Navegación e iconos
 
-Barra lateral **siempre contraída** (54 px): tres destinos arriba y
-**Configuración** abajo, separada (es el único sitio desde donde se abre).
+Barra lateral **azul y siempre contraída** (54 px, `AppColors.navy`): tres
+destinos arriba con el activo en azul (`AppColors.activeTile`) e iconos blancos,
+y **Configuración** abajo, separada (es el único sitio desde donde se abre).
 
 | Sección | Responsabilidad única |
 |---|---|

@@ -15,8 +15,8 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 
 | Control | Estado | Nota |
 |---|---|---|
-| Barra de título, minimizar, maximizar/restaurar, cerrar | FUNCIONA | Son los controles **nativos** de Windows (`TitleBarStyle.normal`); la app no dibuja botones falsos |
-| Barra lateral: Inicio / Apartamentos / Cobros | FUNCIONA | Siempre contraída (54 px), solo iconos, tooltip en español y etiqueta de accesibilidad |
+| Barra de título, minimizar, maximizar/restaurar, cerrar | FUNCIONA | Son los controles **nativos** de Windows (`TitleBarStyle.normal`); la app no dibuja botones falsos. El marco se fija en **blanco** con `DwmSetWindowAttribute` (atributos 20/35/36) |
+| Barra lateral: Inicio / Apartamentos / Cobros | FUNCIONA | Azul (`AppColors.navy`), siempre contraída (54 px), iconos blancos y el activo en azul con tooltip en español |
 | **Configuración** (icono inferior, separado) | FUNCIONA | Único lugar desde donde se abre Ajustes; ya no hay engranaje arriba a la derecha |
 | Arrastrar / redimensionar la ventana | FUNCIONA | Marco nativo; mínimo 960×540 |
 | Pie de página | FUNCIONA | Aviso "funciona sin internet" y versión |
@@ -165,8 +165,8 @@ Ninguna es un error; se listan para decidir después:
 5. En ventanas bajas la pantalla de Inicio pasa a una sola columna con la lista
    acotada, en lugar de comprimir los paneles; la fila que queda cortada se
    difumina para que se entienda que la lista continúa.
-6. La barra de título la dibuja **Windows** (color claro pedido con
-   `setBrightness`), así que su altura y sus iconos son los del sistema y no los
-   de la captura de referencia.
+6. La barra de título la dibuja **Windows** (altura e iconos del sistema), pero su
+   color se fuerza a blanco con texto oscuro; si el equipo no tiene DWM
+   (Windows 10 antiguo) queda el color del tema del sistema.
 7. Ajustes se abre solo desde el icono inferior de la barra lateral; ya no hay
    engranaje en la esquina superior derecha.

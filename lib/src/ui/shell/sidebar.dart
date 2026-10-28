@@ -7,7 +7,7 @@ import '../../app/app_controller.dart';
 import '../../theme/app_colors.dart';
 import '../widgets/app_icon.dart';
 
-/// Barra lateral delgada, **siempre** solo iconos (nunca se expande).
+/// Barra lateral azul delgada, **siempre** solo iconos (nunca se expande).
 ///
 /// * Arriba: los tres destinos principales (Inicio, Apartamentos, Cobros).
 /// * Abajo, separado: Configuración (único lugar desde donde se abre).
@@ -38,8 +38,8 @@ class AppSidebar extends StatelessWidget {
     return Container(
       width: width,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        color: AppColors.navy,
+        border: Border(right: BorderSide(color: AppColors.navyDeep)),
       ),
       child: Column(
         children: [
@@ -60,7 +60,7 @@ class AppSidebar extends StatelessWidget {
           const Spacer(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Divider(height: 1, color: AppColors.divider),
+            child: Divider(height: 1, color: AppColors.navyDeep),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 10),
@@ -110,10 +110,10 @@ class _SidebarTile extends StatelessWidget {
             height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: active ? AppColors.primarySoft : Colors.transparent,
+              color: active ? AppColors.activeTile : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: active ? AppColors.primarySoft : Colors.transparent,
+                color: active ? AppColors.activeTile : Colors.transparent,
               ),
             ),
             child: Padding(
@@ -123,9 +123,11 @@ class _SidebarTile extends StatelessWidget {
               child: AppIconView(
                 icon,
                 size: 22,
-                // El PNG original es negro: en el elemento activo se tiñe de
-                // azul para que se distinga sin fondo oscuro.
-                color: active ? AppColors.primary : AppColors.textStrong,
+                // Los PNG originales son negros: sobre el azul se tiñen de
+                // blanco, y el elemento activo va sobre azul más claro.
+                color: active
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.88),
                 semanticLabel: label,
               ),
             ),

@@ -12,6 +12,7 @@ import 'src/services/backup_service.dart';
 import 'src/services/startup_service.dart';
 import 'src/theme/app_colors.dart';
 import 'src/theme/app_theme.dart';
+import 'src/ui/shell/window_frame.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,8 @@ Future<void> main() async {
     // La barra de título la dibuja Windows; se pide en claro para que combine
     // con la interfaz (si el sistema está en modo oscuro, el marco sería negro).
     await windowManager.setBrightness(Brightness.light);
+    await applyLightTitleBar();
+    applyLightTitleBarSoon();
   } catch (_) {
     // Si el entorno no permite gestionar la ventana, se continúa igual.
   }
