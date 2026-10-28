@@ -147,6 +147,44 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
     );
   }
 
+  /// Elimina un residencial vacío, con confirmación explícita.
+  ///
+  /// Si todavía tiene apartamentos el sistema no borra nada y explica el
+  /// motivo en un aviso corto (nunca se borra en cascada un historial).
+  Future<void> _deleteGroup(
+    BuildContext context,
+    AppController controller,
+    ApartmentGroup group,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Eliminar residencial'),
+        content: Text(
+          'Se eliminará el residencial «${group.name}». '
+          'Solo es posible si no tiene apartamentos.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          OutlineButton(
+            label: 'Cancelar',
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          const SizedBox(width: 10),
+          PrimaryButton(
+            label: 'Eliminar',
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final message = controller.deleteGroup(group.id);
+    reportOutcome(context, message, successMessage: 'Residencial eliminado.');
+  }
+
   Widget _filters(BuildContext context, AppController controller) {
     final groups = controller.groups;
     final selectedGroupId = controller.selectedGroupId;
@@ -181,6 +219,8 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
                 showGroupDialog(context);
               } else if (value == 'renombrar' && selectedGroup != null) {
                 showGroupDialog(context, existing: selectedGroup);
+              } else if (value == 'eliminar' && selectedGroup != null) {
+                _deleteGroup(context, controller, selectedGroup);
               }
             },
             itemBuilder: (context) => [
@@ -192,6 +232,13 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
                 value: 'renombrar',
                 enabled: selectedGroup != null,
                 child: const Text('Renombrar residencial'),
+              ),
+              PopupMenuItem<String>(
+                value: 'eliminar',
+                // Solo tiene sentido si el residencial está vacío: si tiene
+                // apartamentos, el sistema explica por qué no se puede.
+                enabled: selectedGroup != null,
+                child: const Text('Eliminar residencial'),
               ),
             ],
             child: Container(

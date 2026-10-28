@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:control_alquileres/src/data/app_database.dart';
 import 'package:control_alquileres/src/data/app_paths.dart';
+import 'package:control_alquileres/src/data/data_location.dart';
 import 'package:control_alquileres/src/data/finance_models.dart';
 import 'package:control_alquileres/src/data/finance_repository.dart';
 import 'package:control_alquileres/src/data/models.dart';
@@ -25,8 +26,18 @@ Future<void> main(List<String> args) async {
     exit(64);
   }
 
-  final workDir = Directory(args[1])..createSync(recursive: true);
-  final paths = AppPaths.create(workDir.path);
+  final AppPaths paths;
+  try {
+    paths = requireSandboxPaths(
+      args[1],
+      tool: 'phase2_flow',
+      hint: 'El recorrido escribe cobros: debe correr sobre una copia.',
+    );
+  } on SandboxViolation catch (error) {
+    stderr.writeln(error.message);
+    exitCode = 4;
+    return;
+  }
   final source = File(p.join(args[0], 'control_alquileres.sqlite'));
   if (!source.existsSync()) {
     stdout.writeln('No se encontró la base de datos de origen.');

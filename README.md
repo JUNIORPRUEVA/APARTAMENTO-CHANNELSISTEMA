@@ -24,7 +24,7 @@ Cerro y Anamulla). Abre directamente, sin inicio de sesión.
 ```powershell
 flutter pub get
 flutter run -d windows
-flutter test                    # 124 pruebas
+flutter test                    # 178 pruebas
 flutter analyze                 # sin avisos
 flutter build windows --release # build\windows\x64\runner\Release\
 ```
@@ -205,7 +205,7 @@ Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 
 
 ---
 
-## Pruebas (146)
+## Pruebas (178)
 
 | Archivo | Cubre |
 |---|---|
@@ -218,6 +218,11 @@ Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 
 | `receipt_document_test.dart` | PDF de 80 mm exactos (MediaBox), 58 mm, margen, no reescritura, PDF borrado, `.tmp` interrumpido |
 | `escpos_test.dart` | bytes ESC/POS, CP850 sin mojibake, modo sin acentos, cédula enmascarada, ancho de línea, puertos COM del registro |
 | `printer_matrix_test.dart` | impresora ausente, driver que rechaza, Bluetooth apagado, desconexión a medias, timeout, doble impresión |
+| `uat_sequence_test.dart` | secuencia completa (residencial→apartamento→inquilino→contrato→depósito→abono→saldo→adelanto→PDF→reimpresión→anulación→devolución→fin→nuevo inquilino→PDF anterior→copia→restauración) con cifras exactas |
+| `receipt_integrity_test.dart` | ver/reimprimir no crea dinero; regenerar conserva número y snapshot; calibración marcada PRUEBA; snapshot dañado no imprime en blanco |
+| `power_loss_test.dart` | apagón simulado (copia con WAL abierto), .tmp a medias, restauración atómica |
+| `portfolio_actions_test.dart` | residenciales (crear/renombrar/eliminar), apartamentos, inquilinos, condiciones y búsqueda |
+| `data_location_test.dart` | guardia de sandbox: se niega a escribir en la carpeta real |
 | `uat_fixture_test.dart` | escenario de 70 apartamentos: estados, saldos, anulación, depósitos, 99 PDF, integridad |
 
 `dart run tool/phase2_flow.dart <carpetaDatos> <carpetaTrabajo>` ejecuta el ciclo

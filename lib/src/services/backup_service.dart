@@ -154,7 +154,13 @@ class BackupService {
       final file = File('${paths.databaseFile}$suffix');
       if (file.existsSync()) file.deleteSync();
     }
-    source.copySync(paths.databaseFile);
+    // Reemplazo atómico: se copia a un temporal y se renombra. Si se corta la
+    // luz a mitad de la copia, la base de trabajo sigue siendo la anterior
+    // (nunca queda un archivo truncado en su lugar).
+    final staging = File('${paths.databaseFile}.restaurando');
+    if (staging.existsSync()) staging.deleteSync();
+    source.copySync(staging.path);
+    staging.renameSync(paths.databaseFile);
 
     // Copia los recibos incluidos en la copia, si existen.
     final receipts = Directory(p.join(entry.path, 'recibos'));

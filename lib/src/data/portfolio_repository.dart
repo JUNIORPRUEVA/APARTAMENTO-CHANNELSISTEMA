@@ -81,6 +81,40 @@ class PortfolioRepository {
     }
   }
 
+  /// Elimina un residencial **solo si está vacío**.
+  ///
+  /// Sirve para corregir un nombre escrito por error sin dejar basura en la
+  /// lista. Si tiene apartamentos se rechaza: nunca se borra en cascada un
+  /// apartamento con historial de cobros.
+  void deleteGroup(int groupId) {
+    _db.tx(() {
+      final rows = _db.rows(
+        'SELECT name FROM apartment_groups WHERE id = ? LIMIT 1',
+        [groupId],
+      );
+      if (rows.isEmpty) {
+        throw const AppFailure('Ese residencial ya no existe.');
+      }
+      final name = (rows.first['name'] as String?) ?? '';
+      final count =
+          _db.rows('SELECT COUNT(*) AS c FROM apartments WHERE group_id = ?', [
+                groupId,
+              ]).first['c']
+              as int;
+      if (count > 0) {
+        throw AppFailure(
+          'El residencial "$name" todavía tiene $count apartamento'
+          '${count == 1 ? '' : 's'}. Muévalos o elimínelos antes de borrarlo.',
+        );
+      }
+      try {
+        _db.run('DELETE FROM apartment_groups WHERE id = ?', [groupId]);
+      } on SqliteException catch (error) {
+        throw AppFailure('No se pudo eliminar el residencial.', cause: error);
+      }
+    });
+  }
+
   // ----------------------------------------------------------- apartamentos
 
   List<ApartmentRow> listApartments() {

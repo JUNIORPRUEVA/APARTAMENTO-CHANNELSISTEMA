@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:control_alquileres/src/core/formatters.dart';
 import 'package:control_alquileres/src/data/app_database.dart';
 import 'package:control_alquileres/src/data/app_paths.dart';
+import 'package:control_alquileres/src/data/data_location.dart';
 import 'package:control_alquileres/src/data/finance_repository.dart';
 import 'package:control_alquileres/src/data/portfolio_repository.dart';
 import 'package:control_alquileres/src/dev/uat_fixture.dart';
@@ -23,7 +24,19 @@ Future<void> main(List<String> args) async {
   final base = args.isNotEmpty
       ? args.first
       : p.join(Directory.systemTemp.path, 'alquileres-uat');
-  final paths = AppPaths.create(p.join(base, 'datos'));
+  final AppPaths paths;
+  try {
+    paths = requireSandboxPaths(
+      base,
+      tool: 'uat_seed',
+      hint:
+          'Siembra un escenario de prueba; nunca debe apuntar a datos reales.',
+    );
+  } on SandboxViolation catch (error) {
+    stderr.writeln(error.message);
+    exitCode = 4;
+    return;
+  }
   final dataDir = paths.dataDir;
 
   final dbPath = paths.databaseFile;

@@ -569,6 +569,13 @@ class AppController extends ChangeNotifier {
     return null;
   });
 
+  String? deleteGroup(int groupId) => _guard(() {
+    portfolio.deleteGroup(groupId);
+    if (selectedGroupId == groupId) selectedGroupId = null;
+    reload();
+    return null;
+  });
+
   String? addApartment({
     required int groupId,
     required String identifier,

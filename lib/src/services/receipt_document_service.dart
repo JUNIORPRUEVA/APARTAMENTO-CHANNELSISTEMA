@@ -337,6 +337,15 @@ class ReceiptDocumentService {
     return '$series-${record.number.toString().padLeft(8, '0')}.pdf';
   }
 
+  /// `true` si el snapshot tiene lo mínimo para imprimir un documento fiel.
+  static bool _snapshotIsUsable(Map<String, Object?> snapshot) {
+    if (snapshot.isEmpty) return false;
+    final amount = snapshot['amountCents'];
+    final number = snapshot['number'];
+    final tenant = (snapshot['tenantName']?.toString() ?? '').trim();
+    return amount != null && number != null && tenant.isNotEmpty;
+  }
+
   String pathFor(ReceiptRecord record) =>
       p.join(paths.receiptsDir, fileNameFor(record));
 
@@ -373,7 +382,22 @@ class ReceiptDocumentService {
           children: [
             pw.Center(
               child: pw.Text(
-                'CALIBRACIÓN DE IMPRESORA',
+                'PRUEBA DE IMPRESORA · NO ES UN PAGO',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(font: bold, fontSize: 8.5),
+              ),
+            ),
+            pw.Center(
+              child: pw.Text(
+                'No afecta saldos ni numeración de recibos',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(font: font, fontSize: 6.5),
+              ),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Center(
+              child: pw.Text(
+                'CALIBRACIÓN',
                 style: pw.TextStyle(font: bold, fontSize: 9),
               ),
             ),
@@ -494,6 +518,21 @@ class ReceiptDocumentService {
     bool force = false,
   }) async {
     try {
+      // Un snapshot vacío o ilegible significa que el documento no se puede
+      // reconstruir con fidelidad: es preferible un fallo explícito a imprimir
+      // un recibo en blanco (o con datos de otro movimiento).
+      if (!_snapshotIsUsable(record.snapshot)) {
+        finance.markReceiptPdf(
+          receiptId: record.id,
+          status: 'fallido',
+          error: 'El contenido guardado del recibo está incompleto.',
+        );
+        return DocumentResult.failure(
+          'El recibo ${record.label} no tiene contenido guardado y no se '
+          'puede generar.',
+        );
+      }
+
       final target = File(pathFor(record));
       if (!force &&
           target.existsSync() &&

@@ -14,6 +14,7 @@
 import 'dart:io';
 
 import 'package:control_alquileres/src/data/app_database.dart';
+import 'package:control_alquileres/src/data/data_location.dart';
 import 'package:control_alquileres/src/data/finance_models.dart';
 import 'package:control_alquileres/src/data/finance_repository.dart';
 import 'package:control_alquileres/src/data/settings_repository.dart';
@@ -58,15 +59,18 @@ Future<void> main(List<String> args) async {
 
   final dataDir =
       Platform.environment['CONTROL_ALQUILERES_DATA_DIR']?.trim() ?? '';
-  final dbPath = dataDir.isNotEmpty
-      ? p.join(dataDir, 'control_alquileres.sqlite')
-      : p.join(
-          Platform.environment['APPDATA'] ?? '',
-          'do.channelsistema',
-          'Control de Alquileres',
-          'datos',
-          'control_alquileres.sqlite',
-        );
+  if (dataDir.isEmpty || isInsideProductionData(dataDir)) {
+    stderr.writeln(
+      'Por seguridad, esta herramienta solo abre una COPIA de la base.\n'
+      'Defina CONTROL_ALQUILERES_DATA_DIR apuntando a un sandbox, por '
+      'ejemplo:\n'
+      '  ${productionDataDir()}\n'
+      '  -> copie esa carpeta a %TEMP%\\ca-copia\\datos y apunte allí.',
+    );
+    exitCode = 3;
+    return;
+  }
+  final dbPath = p.join(dataDir, 'control_alquileres.sqlite');
   if (!File(dbPath).existsSync()) {
     stderr.writeln('No se encontró la base: $dbPath');
     exitCode = 1;

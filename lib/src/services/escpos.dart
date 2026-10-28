@@ -168,7 +168,11 @@ class EscPosReceipt {
     b.raw([_esc, 0x40]);
     if (!profile.asciiOnly) b.raw([_esc, 0x74, 0x02]);
 
-    b.center('CALIBRACION DE IMPRESORA', bold: true, doubleHeight: true);
+    b.center('PRUEBA DE IMPRESORA', bold: true, doubleHeight: true);
+    b.center('*** NO ES UN PAGO ***', bold: true);
+    b.center('No afecta saldos ni recibos');
+    b.rule(cols);
+    b.center('CALIBRACION', bold: true);
     b.center(model);
     b.center(
       '${formatDate(stamp)} '
@@ -251,6 +255,7 @@ class EscPosReceipt {
       cols,
     );
     b.center('FIN DE LA PRUEBA', bold: true);
+    b.center('*** NO ES UN PAGO ***', bold: true);
     b.raw([_esc, 0x64, 0x05]);
     return b.takeBytes();
   }

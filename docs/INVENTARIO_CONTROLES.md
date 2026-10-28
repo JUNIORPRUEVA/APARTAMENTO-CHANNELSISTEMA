@@ -28,7 +28,7 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | Tarjeta de resumen (cobrado del mes, pendientes) | FUNCIONA | Cifras de la base, no decorativas |
 | Lista de apartamentos con estado | FUNCIONA | Estado calculado con renta y pagos reales |
 | Filtro por residencial | FUNCIONA | Incluye "Todos" |
-| Menú `⋯` del residencial (renombrar/eliminar) | FUNCIONA | Eliminar exige que no queden apartamentos |
+| Menú `⋯` del residencial (nuevo / renombrar / eliminar) | FUNCIONA | Eliminar pide confirmación y se niega si quedan apartamentos (nunca borra en cascada) |
 | Botón **Cobrar** por fila | FUNCIONA | Abre el formulario con el apartamento elegido |
 | Seleccionar apartamento (detalle) | FUNCIONA | Muestra información, pagos mes a mes y depósito |
 | Pestaña **Información** | FUNCIONA | Inquilino, contrato, condiciones |
@@ -97,7 +97,7 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 | **Conexión: Automático / Windows / Bluetooth (COM)** | FUNCIONA | Automático usa un único puerto Bluetooth; nunca elige al azar entre varios |
 | **Selector de impresora** (colas + puertos COM) | FUNCIONA | Nombres de Windows; los puertos *entrantes* se marcan como no utilizables |
 | **Actualizar** | FUNCIONA | Vuelve a consultar spooler, registro y nombres amigables |
-| **Probar** (ticket de calibración) | PARCIAL | Genera el ticket real (PDF o ESC/POS); **no verificado en hardware** |
+| **Probar** (ticket de calibración) | PARCIAL | Genera el ticket real (PDF o ESC/POS) marcado **PRUEBA · NO ES UN PAGO**; no toca numeración; **no verificado en hardware** |
 | Línea de estado ("Impresora lista: COM5") | FUNCIONA | Mensajes en español, sin trazas |
 | Avanzado → **ancho útil calibrado (puntos)** | FUNCIONA | 0 = automático (576 en 80 mm). Persistido y validado |
 | Avanzado → margen de contenido (puntos) | FUNCIONA | Reduce las columnas del ticket |
@@ -127,6 +127,10 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 
 | Caso | Estado |
 |---|---|
+| Copia manual y automática (base + PDF) | FUNCIONA |
+| Restauración con confirmación explícita | FUNCIONA: pide confirmar, guarda copia previa y reemplaza la base de forma **atómica** |
+| Copia dañada | FUNCIONA (probado): se rechaza sin tocar los datos |
+| Herramientas de consola (`uat_seed`, `phase2_flow`, `print_receipt`) | FUNCIONA: **se niegan a escribir en la carpeta real** (guardia de sandbox) |
 | Copia automática cada 24 h | FUNCIONA |
 | Apagón durante un cobro | FUNCIONA (diseño): transacción `BEGIN IMMEDIATE` + WAL/FULL |
 | PDF a medio escribir (`.tmp`) | FUNCIONA (probado): se descarta y se regenera |
