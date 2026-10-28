@@ -4,6 +4,7 @@ import '../../core/formatters.dart';
 import '../../data/finance_models.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'app_icon.dart';
 
 /// Tarjeta blanca base del diseño aprobado.
 class SectionCard extends StatelessWidget {
@@ -109,6 +110,7 @@ class PrimaryButton extends StatelessWidget {
     super.key,
     required this.label,
     this.icon,
+    this.appIcon,
     this.onPressed,
     this.height = 38,
     this.dense = false,
@@ -116,6 +118,9 @@ class PrimaryButton extends StatelessWidget {
 
   final String label;
   final IconData? icon;
+
+  /// Icono PNG aprobado (se dibuja teñido de blanco).
+  final AppIcon? appIcon;
   final VoidCallback? onPressed;
   final double height;
   final bool dense;
@@ -145,7 +150,14 @@ class PrimaryButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null) ...[
+                if (appIcon != null) ...[
+                  AppIconView(
+                    appIcon!,
+                    size: dense ? 14 : 15,
+                    color: enabled ? Colors.white : AppColors.textFaint,
+                  ),
+                  const SizedBox(width: 7),
+                ] else if (icon != null) ...[
                   Icon(
                     icon,
                     size: dense ? 15 : 17,
@@ -153,15 +165,19 @@ class PrimaryButton extends StatelessWidget {
                   ),
                   const SizedBox(width: 7),
                 ],
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: dense ? 12 : 13,
-                    fontWeight: FontWeight.w700,
-                    color: enabled ? Colors.white : AppColors.textFaint,
-                    height: 1.1,
+                // Flexible: si el espacio es justo, el texto se acorta con
+                // puntos suspensivos en vez de desbordar el botón.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: dense ? 12 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: enabled ? Colors.white : AppColors.textFaint,
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ],
@@ -179,6 +195,7 @@ class OutlineButton extends StatelessWidget {
     super.key,
     required this.label,
     this.icon,
+    this.appIcon,
     this.onPressed,
     this.height = 38,
     this.dense = false,
@@ -187,6 +204,9 @@ class OutlineButton extends StatelessWidget {
 
   final String label;
   final IconData? icon;
+
+  /// Icono PNG aprobado (se dibuja teñido con el color del tono).
+  final AppIcon? appIcon;
   final VoidCallback? onPressed;
   final double height;
   final bool dense;
@@ -222,7 +242,14 @@ class OutlineButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null) ...[
+                if (appIcon != null) ...[
+                  AppIconView(
+                    appIcon!,
+                    size: dense ? 14 : 15,
+                    color: enabled ? accent : AppColors.textFaint,
+                  ),
+                  const SizedBox(width: 7),
+                ] else if (icon != null) ...[
                   Icon(
                     icon,
                     size: dense ? 15 : 17,
@@ -230,15 +257,17 @@ class OutlineButton extends StatelessWidget {
                   ),
                   const SizedBox(width: 7),
                 ],
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: dense ? 12 : 13,
-                    fontWeight: FontWeight.w700,
-                    color: enabled ? accent : AppColors.textFaint,
-                    height: 1.1,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: dense ? 12 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: enabled ? accent : AppColors.textFaint,
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ],
@@ -326,10 +355,9 @@ class SearchField extends StatelessWidget {
         decoration: InputDecoration(
           hintText: hint,
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            size: 18,
-            color: AppColors.textFaint,
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 10, right: 6),
+            child: AppIconView(AppIcon.search, size: 16),
           ),
           prefixIconConstraints: const BoxConstraints(minWidth: 38),
         ),

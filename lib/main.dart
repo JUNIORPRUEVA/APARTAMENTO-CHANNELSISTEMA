@@ -70,7 +70,9 @@ Future<void> main() async {
         minimumSize: const Size(960, 540),
         center: true,
         backgroundColor: AppColors.pageBg,
-        titleBarStyle: TitleBarStyle.hidden,
+        // Marco **nativo** de Windows: minimizar, maximizar/restaurar, cerrar,
+        // arrastre y ajuste por DPI los dibuja el sistema operativo (no la app).
+        titleBarStyle: TitleBarStyle.normal,
         title: 'Control de Alquileres',
       ),
       () async {
@@ -79,6 +81,9 @@ Future<void> main() async {
         await windowManager.focus();
       },
     );
+    // La barra de título la dibuja Windows; se pide en claro para que combine
+    // con la interfaz (si el sistema está en modo oscuro, el marco sería negro).
+    await windowManager.setBrightness(Brightness.light);
   } catch (_) {
     // Si el entorno no permite gestionar la ventana, se continúa igual.
   }

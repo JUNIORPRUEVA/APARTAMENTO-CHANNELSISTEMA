@@ -12,6 +12,7 @@ import 'package:control_alquileres/src/data/settings_repository.dart';
 import 'package:control_alquileres/src/services/print_service.dart';
 import 'package:control_alquileres/src/services/printer_profile.dart';
 import 'package:control_alquileres/src/services/serial_transport.dart';
+import 'package:control_alquileres/src/ui/widgets/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,7 +80,12 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ControlAlquileresApp(controller: controller));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    // Ajustes vive en la barra lateral (unico lugar): icono del engranaje.
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is AppIconView && w.icon == AppIcon.settings,
+      ),
+    );
     await tester.pumpAndSettle();
   }
 

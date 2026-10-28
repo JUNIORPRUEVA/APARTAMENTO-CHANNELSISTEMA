@@ -1,0 +1,49 @@
+{
+  "source": "User-provided PNG icons; pixels unchanged",
+  "icons": {
+    "payments.png": {
+      "original": "billetes-de-banco.png",
+      "usage": "payments"
+    },
+    "apartments.png": {
+      "original": "apartamento.png",
+      "usage": "apartments"
+    },
+    "home.png": {
+      "original": "hogar.png",
+      "usage": "home"
+    },
+    "search.png": {
+      "original": "lupa-grande - Copy (2).png",
+      "usage": "search"
+    },
+    "back.png": {
+      "original": "flecha-izquierda - Copy - Copy.png",
+      "usage": "back"
+    },
+    "add.png": {
+      "original": "mas (1).png",
+      "usage": "add"
+    },
+    "receipt.png": {
+      "original": "factura.png",
+      "usage": "receipt"
+    },
+    "edit.png": {
+      "original": "editar-texto.png",
+      "usage": "edit"
+    },
+    "delete.png": {
+      "original": "eliminar.png",
+      "usage": "delete"
+    },
+    "print.png": {
+      "original": "imprimir.png",
+      "usage": "print"
+    },
+    "settings.png": {
+      "original": "configuraciones.png",
+      "usage": "settings"
+    }
+  }
+}

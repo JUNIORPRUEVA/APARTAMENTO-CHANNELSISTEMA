@@ -7,6 +7,7 @@ import '../../../data/models.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
 import '../../dialogs/dialogs.dart';
+import '../../widgets/app_icon.dart';
 import '../../widgets/common.dart';
 
 /// Tarjeta "Mis Apartamentos": filtros por residencial, búsqueda y tabla.
@@ -78,7 +79,7 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
               if (widget.showCreate)
                 PrimaryButton(
                   label: 'Nuevo Apartamento',
-                  icon: Icons.add_rounded,
+                  appIcon: AppIcon.add,
                   onPressed: () => showApartmentDialog(context),
                 ),
             ],
@@ -111,11 +112,37 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
                   ? const EmptyState(
                       message: 'No hay apartamentos que coincidan.',
                     )
-                  : ListView.builder(
-                      itemCount: rows.length,
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (context, index) =>
-                          TableDataRow(columns: _columns, row: rows[index]),
+                  : Stack(
+                      children: [
+                        ListView.builder(
+                          itemCount: rows.length,
+                          padding: EdgeInsets.zero,
+                          itemBuilder: (context, index) =>
+                              TableDataRow(columns: _columns, row: rows[index]),
+                        ),
+                        // Difumina la fila que queda cortada por el alto fijo:
+                        // así se entiende que la lista continúa.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: Container(
+                              height: 26,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0),
+                                    Colors.white,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             )
           else
@@ -226,19 +253,37 @@ class _ApartmentListCardState extends State<ApartmentListCard> {
             itemBuilder: (context) => [
               const PopupMenuItem<String>(
                 value: 'nuevo',
-                child: Text('Nuevo residencial'),
+                child: Row(
+                  children: [
+                    AppIconView(AppIcon.add, size: 15),
+                    SizedBox(width: 8),
+                    Text('Nuevo residencial'),
+                  ],
+                ),
               ),
               PopupMenuItem<String>(
                 value: 'renombrar',
                 enabled: selectedGroup != null,
-                child: const Text('Renombrar residencial'),
+                child: const Row(
+                  children: [
+                    AppIconView(AppIcon.edit, size: 15),
+                    SizedBox(width: 8),
+                    Text('Renombrar residencial'),
+                  ],
+                ),
               ),
               PopupMenuItem<String>(
                 value: 'eliminar',
                 // Solo tiene sentido si el residencial está vacío: si tiene
                 // apartamentos, el sistema explica por qué no se puede.
                 enabled: selectedGroup != null,
-                child: const Text('Eliminar residencial'),
+                child: const Row(
+                  children: [
+                    AppIconView(AppIcon.delete, size: 15),
+                    SizedBox(width: 8),
+                    Text('Eliminar residencial'),
+                  ],
+                ),
               ),
             ],
             child: Container(

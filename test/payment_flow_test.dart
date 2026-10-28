@@ -69,6 +69,13 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ControlAlquileresApp(controller: controller));
     await tester.pumpAndSettle();
+    // El formulario de cobro vive en Cobros (pantalla unica): se navega como
+    // lo haria la duena desde Inicio.
+    final apartmentId = controller.selectedApartmentId;
+    if (apartmentId != null) {
+      controller.startPaymentFor(apartmentId);
+      await tester.pumpAndSettle();
+    }
   }
 
   testWidgets('guardar un pago crea el cobro, el recibo y su PDF', (

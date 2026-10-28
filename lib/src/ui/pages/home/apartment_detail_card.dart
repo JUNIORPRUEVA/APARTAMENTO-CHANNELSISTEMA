@@ -8,6 +8,7 @@ import '../../../data/models.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
 import '../../dialogs/dialogs.dart';
+import '../../widgets/app_icon.dart';
 import '../../widgets/common.dart';
 
 /// Panel derecho: Información, Pagos (estado de cuenta) y Depósito.
@@ -139,7 +140,7 @@ class _ApartmentDetailCardState extends State<ApartmentDetailCard> {
               if (lease != null) ...[
                 OutlineButton(
                   label: 'Editar',
-                  icon: Icons.edit_outlined,
+                  appIcon: AppIcon.edit,
                   dense: true,
                   height: 30,
                   onPressed: () =>
@@ -164,7 +165,7 @@ class _ApartmentDetailCardState extends State<ApartmentDetailCard> {
               ] else
                 OutlineButton(
                   label: 'Registrar inquilino',
-                  icon: Icons.person_add_alt_1_outlined,
+                  appIcon: AppIcon.add,
                   dense: true,
                   height: 30,
                   onPressed: () =>

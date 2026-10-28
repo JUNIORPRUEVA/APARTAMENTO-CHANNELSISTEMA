@@ -563,6 +563,15 @@ class AppController extends ChangeNotifier {
     return null;
   });
 
+  /// Lleva al espacio de cobros con el apartamento ya seleccionado.
+  ///
+  /// Existe una sola versión del formulario de cobro (en `Cobros`): Inicio solo
+  /// navega, nunca duplica el formulario ni el historial.
+  void startPaymentFor(int apartmentId) {
+    selectApartment(apartmentId);
+    setSection(AppSection.cobros);
+  }
+
   String? renameGroup(int groupId, String name) => _guard(() {
     portfolio.renameGroup(groupId, name);
     reload();

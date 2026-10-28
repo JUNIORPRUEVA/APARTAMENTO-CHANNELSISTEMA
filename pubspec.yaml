@@ -67,6 +67,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Iconos PNG aprobados por el dueño (originales, sin modificar el arte).
+  # Ver assets/icons/icon_manifest.json para el significado de cada uno.
+  assets:
+    - assets/icons/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

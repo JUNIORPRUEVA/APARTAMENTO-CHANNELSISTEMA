@@ -11,35 +11,44 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 
 ---
 
-## 1. Ventana principal (barra superior y lateral)
+## 1. Ventana principal (barra de título y lateral)
 
 | Control | Estado | Nota |
 |---|---|---|
-| Barra lateral: Inicio / Apartamentos / Cobros | FUNCIONA | Prueba de widget en 6 tamaños; solo 3 iconos, con tooltip al pasar el mouse |
-| Engranaje de Ajustes (único icono a la derecha) | FUNCIONA | Abre el diálogo de configuración |
-| Arrastrar la ventana / maximizar | FUNCIONA | Ventana sin marco propio; mínimo 960×540 |
-| Avisos emergentes | FUNCIONA | Máximo 3, se deduplican, se cierran solos a los 5 s |
+| Barra de título, minimizar, maximizar/restaurar, cerrar | FUNCIONA | Son los controles **nativos** de Windows (`TitleBarStyle.normal`); la app no dibuja botones falsos |
+| Barra lateral: Inicio / Apartamentos / Cobros | FUNCIONA | Siempre contraída (54 px), solo iconos, tooltip en español y etiqueta de accesibilidad |
+| **Configuración** (icono inferior, separado) | FUNCIONA | Único lugar desde donde se abre Ajustes; ya no hay engranaje arriba a la derecha |
+| Arrastrar / redimensionar la ventana | FUNCIONA | Marco nativo; mínimo 960×540 |
+| Pie de página | FUNCIONA | Aviso "funciona sin internet" y versión |
+| Avisos emergentes | FUNCIONA | Máximo 3, se deduplican, se cierran solos a los 5 s; arriba a la derecha, en español |
 | Barra de búsqueda | FUNCIONA | Filtra por número, residencial o inquilino |
+
+**Reparto de responsabilidades (una por pantalla):**
+
+| Sección | Hace | No hace |
+|---|---|---|
+| Inicio | Lista de apartamentos, ficha del elegido, botón *Cobrar* | No muestra formulario de pago ni historial |
+| Apartamentos | Datos maestros: apartamento, inquilino y condiciones | No cobra |
+| Cobros | Formulario de cobro + historial + ficha | — (es el único taller de cobro) |
 
 ## 2. Inicio
 
 | Control | Estado | Nota |
 |---|---|---|
-| Tarjeta de resumen (cobrado del mes, pendientes) | FUNCIONA | Cifras de la base, no decorativas |
-| Lista de apartamentos con estado | FUNCIONA | Estado calculado con renta y pagos reales |
+| Tarjeta **Mis Apartamentos** (lista con estado) | FUNCIONA | Estado calculado con renta y pagos reales |
 | Filtro por residencial | FUNCIONA | Incluye "Todos" |
 | Menú `⋯` del residencial (nuevo / renombrar / eliminar) | FUNCIONA | Eliminar pide confirmación y se niega si quedan apartamentos (nunca borra en cascada) |
-| Botón **Cobrar** por fila | FUNCIONA | Abre el formulario con el apartamento elegido |
+| Botón **Cobrar** por fila | FUNCIONA | Selecciona el apartamento y abre **Cobros** (ya no abre un formulario dentro de Inicio) |
 | Seleccionar apartamento (detalle) | FUNCIONA | Muestra información, pagos mes a mes y depósito |
 | Pestaña **Información** | FUNCIONA | Inquilino, contrato, condiciones |
 | Pestaña **Pagos** (mes a mes) | FUNCIONA | Períodos del contrato con estado y saldo |
 | Pestaña **Depósito** | FUNCIONA | Recibido / devuelto / retenido con historial |
-| Botón **Cobrar** en el detalle | FUNCIONA | Abre el formulario de cobro |
+| **Cobrar** en la ficha | FUNCIONA | Lleva a **Cobros** con ese apartamento ya elegido |
 | **Condiciones** (renta, día de pago, depósito, notas) | FUNCIONA | No altera meses ya emitidos |
 | **Finalizar contrato** | FUNCIONA | Avisa de renta pendiente y depósito sin liquidar; conserva historial |
 | Registrar inquilino y contrato (apartamento libre) | FUNCIONA | Depósito pactado opcional |
 
-## 3. Formulario de cobro
+## 3. Formulario de cobro (pantalla **Cobros**)
 
 | Control | Estado | Nota |
 |---|---|---|
@@ -81,11 +90,12 @@ Todo lo financiero se prueba contra SQLite real; nada simula dinero.
 
 | Control | Estado | Nota |
 |---|---|---|
-| Listado completo con filtros | FUNCIONA | Agrupado por residencial |
+| Listado completo con filtros (maestro-detalle) | FUNCIONA | Agrupado por residencial; en ventanas estrechas se apila la ficha debajo |
 | Nuevo residencial / nuevo apartamento | FUNCIONA | Valida número duplicado por residencial |
-| Editar apartamento | FUNCIONA | Impide marcar "disponible" con contrato activo |
-| Página Cobros: pendientes por apartamento | FUNCIONA | Ordenado por atraso |
-| Botón Cobrar desde esa página | FUNCIONA | Mismo formulario real |
+| Editar apartamento y **Guardar cambios** | FUNCIONA | Impide marcar "disponible" con contrato activo |
+| Página Cobros: encabezado con apartamento y estado | FUNCIONA | Muestra inquilino, residencial y estado real |
+| **Cambiar** (volver a elegir apartamento) | FUNCIONA | Regresa al selector «Elija el apartamento a cobrar»; icono `back.png` |
+| Formulario + historial en la misma pantalla | FUNCIONA | Es el único lugar con formulario de cobro |
 
 ## 7. Ajustes e impresora (2C-P80-C)
 
@@ -153,4 +163,10 @@ Ninguna es un error; se listan para decidir después:
 4. El botón "Guardar e imprimir recibo" se acorta con puntos suspensivos en
    ventanas muy estrechas (evita desbordes).
 5. En ventanas bajas la pantalla de Inicio pasa a una sola columna con la lista
-   acotada, en lugar de comprimir los paneles.
+   acotada, en lugar de comprimir los paneles; la fila que queda cortada se
+   difumina para que se entienda que la lista continúa.
+6. La barra de título la dibuja **Windows** (color claro pedido con
+   `setBrightness`), así que su altura y sus iconos son los del sistema y no los
+   de la captura de referencia.
+7. Ajustes se abre solo desde el icono inferior de la barra lateral; ya no hay
+   engranaje en la esquina superior derecha.

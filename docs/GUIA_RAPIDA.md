@@ -6,9 +6,23 @@ Para el uso diario. Todo queda guardado en el equipo; no hace falta internet.
 
 Doble clic en **Control de Alquileres**. Abre directo, sin usuario ni clave.
 
+## Las tres pantallas y los ajustes
+
+La barra de la izquierda **solo tiene iconos**; al pasar el mouse aparece el
+nombre:
+
+* **Inicio** (casa): la lista de apartamentos y la ficha del que elija.
+* **Apartamentos** (edificio): crear o corregir apartamentos, inquilinos y
+  condiciones del contrato. Aquí **no** se cobra.
+* **Cobros** (billete): el formulario de pago y el historial. Es el único sitio
+  donde se registra dinero.
+* **Configuración** (engranaje, abajo del todo): impresora, datos del negocio y
+  copias de seguridad.
+
 ## Cobrar un alquiler
 
-1. Elija el apartamento en la lista (o pulse **Cobrar** en su fila).
+1. En **Inicio**, elija el apartamento en la lista (o pulse **Cobrar** en su
+   fila). La aplicación abre **Cobros** con ese apartamento ya elegido.
 2. En **Registrar pago** verifique:
    * **Período**: cámbielo con `‹ ›` si cobra otro mes.
    * **Monto a pagar**: viene el saldo completo; puede escribir un abono menor.
@@ -59,7 +73,8 @@ conserva y se puede consultar con el filtro del historial.
    dispositivo* → *Bluetooth* → elija **2C-P80-C**. Windows crea un puerto
    **saliente** tipo `COM5` (visible en *Administrador de dispositivos →
    Puertos COM y LPT*).
-3. Abra la aplicación → **Engranaje** → sección **Impresora** → **Actualizar**.
+3. Abra la aplicación → **Configuración** (engranaje abajo a la izquierda) →
+   sección **Impresora** → **Actualizar**.
 4. Elija el puerto que dice *Bluetooth* (por ejemplo
    `COM5 · Standard Serial over Bluetooth link`). **No** elija uno que diga
    *entrante*: ese no sirve para imprimir.
@@ -87,7 +102,7 @@ conserva y se puede consultar con el filtro del historial.
 
 ## Copias de seguridad
 
-**Engranaje** → **Datos y respaldo**:
+**Configuración** (engranaje abajo a la izquierda) → **Datos y respaldo**:
 
 * Se crea una copia automática al abrir si pasó más de un día (se guardan 14).
 * **Crear copia ahora**: copia inmediata.

@@ -9,7 +9,6 @@ import '../../data/finance_models.dart';
 import '../../data/models.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-import '../pages/home/payment_card.dart';
 import '../widgets/common.dart';
 
 /// Publica el resultado de una operación en el sistema de notificaciones.
@@ -798,23 +797,8 @@ Future<void> showEndLeaseDialog(
 
 /// Cobro en ventana compacta: reutiliza el formulario real dentro de un
 /// diálogo, para no perder el botón de guardar en pantallas pequeñas.
-Future<void> showPaymentDialog(BuildContext context) {
-  final apartment = AppScope.read(context).selectedApartment;
-  if (apartment == null || apartment.lease == null) return Future.value();
-  return showDialog<void>(
-    context: context,
-    barrierColor: const Color(0x660B1733),
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(20),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
-        child: const PaymentCard(),
-      ),
-    ),
-  );
-}
+/// Retirado del flujo: el cobro vive en la página **Cobros** (una sola
+/// responsabilidad). Se conserva el formulario `PaymentCard` como pieza única.
 
 // ------------------------------------------------------ anulación de pago
 

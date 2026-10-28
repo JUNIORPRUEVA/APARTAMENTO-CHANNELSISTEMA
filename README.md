@@ -24,7 +24,7 @@ Cerro y Anamulla). Abre directamente, sin inicio de sesión.
 ```powershell
 flutter pub get
 flutter run -d windows
-flutter test                    # 178 pruebas
+flutter test                    # 189 pruebas
 flutter analyze                 # sin avisos
 flutter build windows --release # build\windows\x64\runner\Release\
 ```
@@ -191,21 +191,66 @@ docs/GUIA_RAPIDA.md           guía de una página para la dueña
   `image 4.11` no compila contra él.
 * Un índice único **parcial** garantiza un contrato activo por apartamento sin
   perder el historial.
-* Ventana sin marco propio, mínimo 960×540 (1366×768 al 125 % deja ~1093×578).
+* **Marco nativo de Windows**: la barra de título, minimizar, maximizar, cerrar,
+  arrastre y ajuste por DPI los dibuja el sistema operativo (`TitleBarStyle.normal`);
+  la aplicación no pinta botones falsos. Mínimo 960×540 (1366×768 al 125 % deja
+  ~1093×578).
 
 ### Comportamiento por tamaño
 
 | Condición | Diseño |
 |---|---|
-| ancho ≥ 1180 y alto de contenido ≥ 780 | Dos filas como la referencia |
-| resto | Columna única desplazable; la lista tiene su propia zona con scroll |
+| Inicio con ancho ≥ 1040 | Lista (62 %) y ficha del apartamento (38 %) lado a lado |
+| Cobros con ancho ≥ 1080 | Cobro + historial (58 %) y ficha (42 %) lado a lado |
+| resto | Columna única desplazable; la lista de apartamentos tiene su propia zona con scroll (la fila cortada se difumina) |
 
 Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 y
 960×540.
 
 ---
 
-## Pruebas (178)
+## Navegación e iconos
+
+Barra lateral **siempre contraída** (54 px): tres destinos arriba y
+**Configuración** abajo, separada (es el único sitio desde donde se abre).
+
+| Sección | Responsabilidad única |
+|---|---|
+| **Inicio** | Trabajo diario: lista de apartamentos + ficha del elegido y botón *Cobrar*. Sin formulario de pago ni historial. |
+| **Apartamentos** | Datos maestros: crear/editar apartamento, inquilino y condiciones del contrato. No cobra. |
+| **Cobros** | Único taller de cobro: formulario de pago + historial + ficha del apartamento. |
+
+*Cobrar* en Inicio solo **selecciona** el apartamento y abre **Cobros**; nunca
+cambia de apartamento en silencio.
+
+Los 11 PNG entregados se copiaron tal cual a `assets/icons/` (línea negra sobre
+transparente) y se registran con una sola entrada (`assets/icons/`). El mapeo
+vive en `lib/src/ui/widgets/app_icon.dart`:
+
+| Archivo | Uso |
+|---|---|
+| `home.png` | barra lateral · Inicio |
+| `apartments.png` | barra lateral · Apartamentos, títulos y ficha |
+| `payments.png` | barra lateral · Cobros, encabezado de cobro |
+| `settings.png` | barra lateral · Configuración (abajo) |
+| `search.png` | campo *Buscar apartamento o inquilino* |
+| `back.png` | botón *Cambiar* (volver a elegir apartamento) |
+| `add.png` | *Nuevo Apartamento*, *Registrar inquilino*, menús |
+| `receipt.png` | insignia de recibo y menú *Ver PDF* |
+| `edit.png` | *Editar*, *Editar inquilino* |
+| `delete.png` | *Anular pago*, *Eliminar residencial* |
+| `print.png` | *Reimprimir*, acción de impresión por fila |
+
+Se dibujan con `AppIconView` (tintado `srcIn`, `filterQuality.medium`) y llevan
+etiqueta semántica en español; `test/ui_navigation_test.dart` comprueba que los
+11 archivos se cargan de verdad desde el paquete.
+
+Capturas de la aplicación **en ejecución** (build de release, datos del sandbox
+en `%TEMP%\ca-ui`, nunca los reales): `docs/capturas/`.
+
+---
+
+## Pruebas (189)
 
 | Archivo | Cubre |
 |---|---|
@@ -224,6 +269,7 @@ Probado sin desbordes en 1536×1024, 1366×768, 1280×720, 1093×578, 1024×576 
 | `portfolio_actions_test.dart` | residenciales (crear/renombrar/eliminar), apartamentos, inquilinos, condiciones y búsqueda |
 | `data_location_test.dart` | guardia de sandbox: se niega a escribir en la carpeta real |
 | `uat_fixture_test.dart` | escenario de 70 apartamentos: estados, saldos, anulación, depósitos, 99 PDF, integridad |
+| `ui_navigation_test.dart` | 11 iconos cargados del paquete, etiquetas en español, *Cobrar*→Cobros, un solo formulario/historial, tooltips, 5 tamaños sin desbordes |
 
 `dart run tool/phase2_flow.dart <carpetaDatos> <carpetaTrabajo>` ejecuta el ciclo
 completo (cobro → PDF → idempotencia → anulación → depósitos) sobre una **copia**

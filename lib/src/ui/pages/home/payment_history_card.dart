@@ -8,6 +8,7 @@ import '../../../data/finance_models.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
 import '../../dialogs/dialogs.dart';
+import '../../widgets/app_icon.dart';
 import '../../widgets/common.dart';
 
 /// Historial real de pagos del apartamento, con apertura de PDF, reimpresión y
@@ -369,7 +370,7 @@ class _RowActions extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: Padding(
               padding: const EdgeInsets.all(2),
-              child: Icon(Icons.print_outlined, size: 16, color: color),
+              child: AppIconView(AppIcon.print, size: 16, color: color),
             ),
           ),
         ),
@@ -392,18 +393,36 @@ class _RowActions extends StatelessWidget {
             PopupMenuItem<String>(
               value: 'pdf',
               enabled: enabled,
-              child: const Text('Ver PDF'),
+              child: const Row(
+                children: [
+                  AppIconView(AppIcon.receipt, size: 15),
+                  SizedBox(width: 8),
+                  Text('Ver PDF'),
+                ],
+              ),
             ),
             PopupMenuItem<String>(
               value: 'reimprimir',
               enabled: onPrint != null,
-              child: const Text('Reimprimir'),
+              child: const Row(
+                children: [
+                  AppIconView(AppIcon.print, size: 15),
+                  SizedBox(width: 8),
+                  Text('Reimprimir'),
+                ],
+              ),
             ),
             const PopupMenuDivider(),
             PopupMenuItem<String>(
               value: 'anular',
               enabled: onVoid != null,
-              child: const Text('Anular pago'),
+              child: const Row(
+                children: [
+                  AppIconView(AppIcon.delete, size: 15),
+                  SizedBox(width: 8),
+                  Text('Anular pago'),
+                ],
+              ),
             ),
           ],
         ),

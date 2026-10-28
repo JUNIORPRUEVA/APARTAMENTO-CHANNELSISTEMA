@@ -7,6 +7,7 @@ import 'package:control_alquileres/src/data/app_paths.dart';
 import 'package:control_alquileres/src/data/portfolio_repository.dart';
 import 'package:control_alquileres/src/data/settings_repository.dart';
 import 'package:control_alquileres/src/ui/shell/sidebar.dart';
+import 'package:control_alquileres/src/ui/widgets/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,24 +69,44 @@ void main() {
       await pumpAt(tester, entry.value);
       expect(tester.takeException(), isNull);
       expect(find.text('Mis Apartamentos'), findsOneWidget);
-      expect(find.text('Registrar pago - Apartamento 101'), findsWidgets);
+      // Inicio es el flujo del día: lista + ficha y un solo botón Cobrar por
+      // fila. El formulario de cobro NO se duplica aquí.
+      expect(find.text('Guardar e imprimir recibo'), findsNothing);
+      expect(find.text('Pagos realizados - Apartamento 101'), findsNothing);
     });
   }
 
-  testWidgets('barra lateral: exactamente tres iconos con tooltips', (
+  testWidgets('barra lateral: 3 destinos + Configuración abajo, con tooltips', (
     tester,
   ) async {
     await pumpAt(tester, const Size(1366, 768));
-    expect(find.byType(SidebarTooltip), findsNWidgets(3));
-    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.apartment_rounded), findsWidgets);
-    expect(find.byIcon(Icons.account_balance_wallet_rounded), findsWidgets);
+    // Tres destinos principales y el engranaje de ajustes al pie.
+    expect(find.byType(SidebarTooltip), findsNWidgets(4));
+    // 4 en la barra lateral (3 destinos + ajustes); el quinto es la marca de
+    // la barra superior.
+    expect(
+      find.descendant(
+        of: find.byType(AppSidebar),
+        matching: find.byType(AppIconView),
+      ),
+      findsNWidgets(4),
+    );
+    expect(find.bySemanticsLabel('Inicio'), findsWidgets);
+    expect(find.bySemanticsLabel('Apartamentos'), findsWidgets);
+    expect(find.bySemanticsLabel('Cobros'), findsWidgets);
+    expect(find.bySemanticsLabel('Configuración'), findsWidgets);
   });
 
-  testWidgets('la barra superior solo tiene el engranaje (sin texto '
-      '"Configuración")', (tester) async {
+  testWidgets('la barra superior no tiene botones de ventana ni engranaje', (
+    tester,
+  ) async {
     await pumpAt(tester, const Size(1366, 768));
-    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    // El marco (minimizar/maximizar/cerrar) lo dibuja Windows, no la app.
+    expect(find.byIcon(Icons.remove_rounded), findsNothing);
+    expect(find.byIcon(Icons.close_rounded), findsNothing);
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
+    expect(find.text('Control de Alquileres'), findsOneWidget);
+    // Ajustes vive en un solo lugar: la barra lateral.
     expect(find.text('Configuración'), findsNothing);
   });
 
@@ -130,6 +151,9 @@ void main() {
     tester,
   ) async {
     await pumpAt(tester, const Size(1536, 1024));
+    // El formulario vive en Cobros: se navega como lo haría la dueña.
+    controller.startPaymentFor(controller.selectedApartmentId!);
+    await tester.pumpAndSettle();
     expect(find.text('Guardar e imprimir recibo'), findsWidgets);
 
     final amountField = find.byWidgetPredicate(
