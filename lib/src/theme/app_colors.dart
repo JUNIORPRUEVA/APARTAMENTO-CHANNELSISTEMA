@@ -12,6 +12,10 @@ abstract final class AppColors {
   static const Color primarySoft = Color(0xFFE9F1FE);
   static const Color activeTile = Color(0xFF0A78DA);
 
+  /// Barra de marca (debajo del marco nativo blanco de Windows).
+  static const Color appBarSoft = Color(0xFFE6EFFC);
+  static const Color appBarSoftBorder = Color(0xFFCBDCF7);
+
   // Superficies
   static const Color pageBg = Color(0xFFF1F5FB);
   static const Color card = Color(0xFFFFFFFF);

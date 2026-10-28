@@ -196,6 +196,8 @@ docs/GUIA_RAPIDA.md           guía de una página para la dueña
   la aplicación no pinta botones falsos. El marco se fuerza a **blanco**
   (`DwmSetWindowAttribute`: sin modo oscuro, color de título blanco y texto
   oscuro) para que combine con la interfaz aunque Windows esté en tema oscuro.
+  Debajo, la barra de marca va en **azul muy claro** (`AppColors.appBarSoft`)
+  para no confundirse con el marco blanco del sistema.
   Mínimo 960×540 (1366×768 al 125 % deja ~1093×578).
 
 ### Comportamiento por tamaño

@@ -21,8 +21,10 @@ class AppTitleBar extends StatelessWidget {
     return Container(
       height: AppMetrics.appBarHeight,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+        // Azul muy claro: distingue la barra de marca del marco nativo de
+        // Windows (blanco) sin competir con el azul de la barra lateral.
+        color: AppColors.appBarSoft,
+        border: Border(bottom: BorderSide(color: AppColors.appBarSoftBorder)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
