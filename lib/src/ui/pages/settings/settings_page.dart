@@ -135,6 +135,26 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     });
   }
 
+  /// Claves válidas del desplegable (`cola:…` / `serie:…`).
+  List<String> get _targetKeys => [
+    for (final printer in _printers)
+      '${printer.kind == PrinterKind.serialCom ? 'serie' : 'cola'}:'
+          '${printer.endpoint}',
+  ];
+
+  /// `true` cuando la impresora guardada ya no está en la lista detectada.
+  String? get _missingTarget {
+    final raw = _selectedTarget;
+    if (raw == null || raw.isEmpty) return null;
+    return _targetKeys.contains(raw) ? null : _draftTarget.target;
+  }
+
+  String? get _dropdownValue {
+    final raw = _selectedTarget;
+    if (raw == null || raw.isEmpty) return null;
+    return _targetKeys.contains(raw) || _missingTarget != null ? raw : null;
+  }
+
   /// Destino seleccionado en formato (transporte, destino).
   ({PrinterTransport transport, String? target}) get _draftTarget {
     final raw = _selectedTarget;
@@ -651,9 +671,21 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                                   ),
                                 )
                               : DropdownButtonFormField<String>(
-                                  initialValue: _selectedTarget,
+                                  // Si la impresora guardada ya no aparece
+                                  // (apagada, desemparejada), se muestra igual
+                                  // para no romper el desplegable ni perder la
+                                  // configuración.
+                                  initialValue: _dropdownValue,
                                   isExpanded: true,
                                   items: [
+                                    if (_missingTarget != null)
+                                      DropdownMenuItem(
+                                        value: _selectedTarget,
+                                        child: Text(
+                                          '${_missingTarget!} · no disponible',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                     for (final printer in _printers)
                                       DropdownMenuItem(
                                         value:
